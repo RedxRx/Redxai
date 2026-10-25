@@ -1,0 +1,711 @@
+--[[ RedxAI v3 | Blood Theme | Arabic + English | AI online + commands
+     Works on Delta (mobile + PC). Re-running it replaces the old copy. ]]
+
+---------------------------------------------------------------- CONFIG
+local CONFIG = {
+	-- ApiKey فاضي = خدمة Pollinations المجانية (من غير مفتاح، وممكن تتأخر لو الضغط عالي)
+	-- Leave ApiKey empty to use the free Pollinations service (no key needed)
+	-- لو عندك مفتاح لأي خدمة متوافقة مع OpenAI (OpenRouter / Groq ...) حطه هنا:
+	ApiKey = "",
+	ApiUrl = "https://openrouter.ai/api/v1/chat/completions",
+	Model = "",
+	MaxHistory = 8,
+	DefaultSpeed = 100,
+	DefaultJump = 150,
+	FlySpeed = 60,
+}
+
+---------------------------------------------------------------- SERVICES
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+
+local LP = Players.LocalPlayer
+local env = (getgenv and getgenv()) or _G
+if env.RedxAI_Unload then pcall(env.RedxAI_Unload) end
+
+local State = { Fly = false, FlySpeed = CONFIG.FlySpeed, Speed = nil, Jump = nil, InfJump = false }
+local FlyVert = 0
+local Conns = {}
+local function Track(c) Conns[#Conns + 1] = c return c end
+local RefreshUI = function() end
+
+local function clamp(v, a, b) return math.max(a, math.min(b, v)) end
+local function GetHum()
+	local c = LP.Character
+	return c and c:FindFirstChildOfClass("Humanoid")
+end
+local function GetRoot()
+	local c = LP.Character
+	return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+---------------------------------------------------------------- ACTIONS
+local Actions = {}
+
+local ControlModule
+local function GetControls()
+	if ControlModule ~= nil then return ControlModule or nil end
+	ControlModule = false
+	pcall(function()
+		local ps = LP:FindFirstChild("PlayerScripts") or LP:WaitForChild("PlayerScripts", 3)
+		local pm = ps and (ps:FindFirstChild("PlayerModule") or ps:WaitForChild("PlayerModule", 3))
+		if pm then ControlModule = require(pm:WaitForChild("ControlModule", 3)) end
+	end)
+	return ControlModule or nil
+end
+
+-- returns (right, forward) in -1..1 — works with phone joystick AND keyboard
+local function GetMove(hum, cam)
+	local cm = GetControls()
+	if cm then
+		local ok, mv = pcall(function() return cm:GetMoveVector() end)
+		if ok and typeof(mv) == "Vector3" then return mv.X, -mv.Z end
+	end
+	local look = cam.CFrame.LookVector
+	local flat = Vector3.new(look.X, 0, look.Z)
+	if flat.Magnitude < 0.01 then return 0, 0 end
+	flat = flat.Unit
+	local md = hum.MoveDirection
+	return md:Dot(flat:Cross(Vector3.yAxis)), md:Dot(flat)
+end
+
+local flyConn, flyBV, flyBG
+
+function Actions.StopFly()
+	State.Fly = false
+	FlyVert = 0
+	if flyConn then flyConn:Disconnect() flyConn = nil end
+	if flyBV then flyBV:Destroy() flyBV = nil end
+	if flyBG then flyBG:Destroy() flyBG = nil end
+	local h = GetHum()
+	if h then h.PlatformStand = false end
+	RefreshUI()
+end
+
+function Actions.StartFly()
+	local hum, root = GetHum(), GetRoot()
+	if not hum or not root then return false end
+	Actions.StopFly()
+	State.Fly = true
+	hum.PlatformStand = true
+	flyBV = Instance.new("BodyVelocity")
+	flyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+	flyBV.Velocity = Vector3.new(0, 0, 0)
+	flyBV.Parent = root
+	flyBG = Instance.new("BodyGyro")
+	flyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
+	flyBG.P = 1e4
+	flyBG.D = 500
+	flyBG.CFrame = root.CFrame
+	flyBG.Parent = root
+	flyConn = RunService.RenderStepped:Connect(function()
+		local h, r, cam = GetHum(), GetRoot(), workspace.CurrentCamera
+		if not State.Fly or not h or not r or not cam or not flyBV or flyBV.Parent ~= r then
+			Actions.StopFly()
+			return
+		end
+		h.PlatformStand = true
+		local rx, fz = GetMove(h, cam)
+		local cf = cam.CFrame
+		local dir = cf.LookVector * fz + cf.RightVector * rx
+		local v = FlyVert
+		if UIS:IsKeyDown(Enum.KeyCode.Space) then v = v + 1 end
+		if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then v = v - 1 end
+		dir = dir + Vector3.new(0, v, 0)
+		if dir.Magnitude > 1 then dir = dir.Unit end
+		flyBV.Velocity = dir * State.FlySpeed
+		local look = cf.LookVector
+		local flat = Vector3.new(look.X, 0, look.Z)
+		if flat.Magnitude > 0.01 then
+			flyBG.CFrame = CFrame.lookAt(r.Position, r.Position + flat)
+		end
+	end)
+	RefreshUI()
+	return true
+end
+
+function Actions.SetSpeed(v) -- nil = back to default
+	State.Speed = v
+	local h = GetHum()
+	if h then h.WalkSpeed = v or 16 end
+	RefreshUI()
+end
+
+function Actions.SetJump(v) -- nil = back to default
+	State.Jump = v
+	local h = GetHum()
+	if h then
+		h.UseJumpPower = true
+		h.JumpPower = v or 50
+	end
+	RefreshUI()
+end
+
+local infConn
+function Actions.SetInfJump(on)
+	State.InfJump = on and true or false
+	if infConn then infConn:Disconnect() infConn = nil end
+	if State.InfJump then
+		infConn = UIS.JumpRequest:Connect(function()
+			local h = GetHum()
+			if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end
+		end)
+	end
+	RefreshUI()
+end
+
+function Actions.ResetAll()
+	Actions.StopFly()
+	Actions.SetSpeed(nil)
+	Actions.SetJump(nil)
+	Actions.SetInfJump(false)
+end
+
+-- keep speed/jump alive even if the game tries to reset them
+Track(RunService.Heartbeat:Connect(function()
+	local h = GetHum()
+	if not h then return end
+	if State.Speed and h.WalkSpeed ~= State.Speed then h.WalkSpeed = State.Speed end
+	if State.Jump then
+		if not h.UseJumpPower then h.UseJumpPower = true end
+		if h.JumpPower ~= State.Jump then h.JumpPower = State.Jump end
+	end
+end))
+Track(LP.CharacterAdded:Connect(function()
+	if State.Fly then Actions.StopFly() end
+end))
+
+--#BEGIN_LOGIC
+---------------------------------------------------------------- TEXT ENGINE (Arabic + English)
+local function T(ar, a, e) if ar then return a end return e end
+local function HasArabic(s) return s:find("[\216-\219]") ~= nil end
+
+-- normalize: lowercase, Arabic digits -> 0-9, alef/ya/ta-marbuta variants, remove tashkeel
+local function Norm(s)
+	s = tostring(s or "")
+	local ok, out = pcall(function()
+		local t = {}
+		for _, cp in utf8.codes(s) do
+			if (cp >= 0x064B and cp <= 0x0652) or cp == 0x0640 or cp == 0x0670 then
+				-- skip diacritics / tatweel
+			elseif cp == 0x0623 or cp == 0x0625 or cp == 0x0622 or cp == 0x0671 then t[#t + 1] = utf8.char(0x0627)
+			elseif cp == 0x0629 then t[#t + 1] = utf8.char(0x0647)
+			elseif cp == 0x0649 or cp == 0x0626 then t[#t + 1] = utf8.char(0x064A)
+			elseif cp == 0x0624 then t[#t + 1] = utf8.char(0x0648)
+			elseif cp >= 0x0660 and cp <= 0x0669 then t[#t + 1] = utf8.char(48 + cp - 0x0660)
+			elseif cp >= 0x06F0 and cp <= 0x06F9 then t[#t + 1] = utf8.char(48 + cp - 0x06F0)
+			elseif cp >= 65 and cp <= 90 then t[#t + 1] = utf8.char(cp + 32)
+			else t[#t + 1] = utf8.char(cp) end
+		end
+		return table.concat(t)
+	end)
+	if ok then return out end
+	return string.lower(s)
+end
+
+local function Clean(s)
+	local n = Norm(s)
+	n = n:gsub("[^%w\128-\255]+", " ")
+	n = n:gsub("%s+", " ")
+	return (n:match("^%s*(.-)%s*$"))
+end
+
+local function IsAscii(s) return not s:find("[\128-\255]") end
+local function HasExact(n, kw) return (" " .. n .. " "):find(" " .. kw .. " ", 1, true) ~= nil end
+local function Has(n, kw)
+	if kw == "" then return false end
+	if IsAscii(kw) then
+		if #kw <= 3 then return HasExact(n, kw) end
+		return (" " .. n):find(" " .. kw, 1, true) ~= nil
+	end
+	if #kw <= 4 then return HasExact(n, kw) end
+	return n:find(kw, 1, true) ~= nil
+end
+local function HasAny(n, list)
+	for _, kw in ipairs(list) do if Has(n, kw) then return true end end
+	return false
+end
+local function KW(list)
+	local o = {}
+	for i, k in ipairs(list) do o[i] = Clean(k) end
+	return o
+end
+
+local K = {
+	fly = KW { "fly", "flying", "flight", "طيران", "طير", "اطير", "حلق", "طياره" },
+	speed = KW { "speed", "faster", "walkspeed", "سرع", "اجري", "اعدو", "اركض", "ركض" },
+	jump = KW { "jump", "jumppower", "قفز", "اقفز", "نط", "انط", "نطه" },
+	inf = KW { "infinite jump", "inf jump", "infjump", "double jump", "قفز لانهايي", "قفز لا نهايي", "قفز مستمر", "قفز بلا حدود", "نط لانهايي", "نط بلا حدود" },
+	reset = KW { "reset", "restore", "default", "normal", "ريسيت", "رجع", "ارجع", "اعاده", "طبيعي", "عادي" },
+	on = KW { "on", "enable", "start", "activate", "turn on", "شغل", "فعل", "ابدا", "اشتغل", "تشغيل", "افتح" },
+	off = KW { "off", "disable", "stop", "deactivate", "turn off", "وقف", "اقفل", "ايقاف", "بطل", "الغي", "الغاء", "اطفي", "طفي", "نزلني" },
+	act = KW { "set", "make", "give", "let", "change", "increase", "decrease", "raise", "lower", "خليني", "خلي", "اعلي", "زود", "قلل", "غير", "اضبط", "ظبط" },
+	qStrongExact = KW { "ايه", "ايش", "ليه", "مين", "what", "how", "why", "who" },
+	qStrongSub = KW { "ازاي", "كيف", "يعني", "معني", "ماذا", "لماذا", "اشرح", "explain", "define", "وضح" },
+	qWeakExact = KW { "هل", "can", "is", "are", "does", "do", "متي", "when", "where", "فين", "اين", "كام", "which" },
+}
+
+-- returns handled, reply
+local function TryCommand(text, ar)
+	local n = Clean(text)
+	if n == "" then return false end
+	local num = tonumber(n:match("%d+"))
+
+	local isOff, isOn = HasAny(n, K.off), HasAny(n, K.on)
+	local hasAct = isOff or isOn or HasAny(n, K.act) or num ~= nil
+	local strongQ = false
+	for _, kw in ipairs(K.qStrongExact) do if HasExact(n, kw) then strongQ = true end end
+	if not strongQ then strongQ = HasAny(n, K.qStrongSub) end
+	local weakQ = text:find("?", 1, true) ~= nil or text:find("؟", 1, true) ~= nil
+	if not weakQ then
+		for _, kw in ipairs(K.qWeakExact) do if HasExact(n, kw) then weakQ = true end end
+	end
+	if strongQ then return false end
+	if weakQ and not hasAct then return false end
+
+	local mFly, mSpeed, mJump = HasAny(n, K.fly), HasAny(n, K.speed), HasAny(n, K.jump)
+
+	-- infinite jump
+	if HasAny(n, K.inf) then
+		Actions.SetInfJump(not isOff)
+		return true, State.InfJump and T(ar, "♾ القفز اللانهائي شغال", "♾ Infinite jump ON") or T(ar, "تم إيقاف القفز اللانهائي", "Infinite jump OFF")
+	end
+
+	-- reset
+	if HasAny(n, K.reset) then
+		if mFly and not (mSpeed or mJump) then
+			Actions.StopFly()
+			return true, T(ar, "🛑 تم إيقاف الطيران", "🛑 Fly OFF")
+		elseif mSpeed and not (mFly or mJump) then
+			Actions.SetSpeed(nil)
+			return true, T(ar, "⚡ السرعة رجعت طبيعية (16)", "⚡ Speed back to normal (16)")
+		elseif mJump and not (mFly or mSpeed) then
+			Actions.SetJump(nil)
+			return true, T(ar, "⬆ القفز رجع طبيعي (50)", "⬆ Jump back to normal (50)")
+		end
+		Actions.ResetAll()
+		return true, T(ar, "↺ رجّعت كل حاجة للوضع الطبيعي", "↺ Everything is back to normal")
+	end
+
+	-- fly
+	if mFly then
+		if num then State.FlySpeed = clamp(num, 5, 300) end
+		local want
+		if isOff then want = false elseif isOn or num then want = true else want = not State.Fly end
+		if want then
+			if Actions.StartFly() then
+				return true, T(ar, "✈ الطيران شغال (السرعة " .. State.FlySpeed .. ") — حرّك الجويستيك، وأزرار ▲ ▼ للصعود والنزول",
+					"✈ Fly ON (speed " .. State.FlySpeed .. ") — use the joystick, and the ▲ ▼ buttons to go up/down")
+			end
+			return true, T(ar, "مفيش شخصية دلوقتي، استنى لحد ما تظهر", "No character yet, wait until you spawn")
+		end
+		Actions.StopFly()
+		return true, T(ar, "🛑 تم إيقاف الطيران", "🛑 Fly OFF")
+	end
+
+	-- speed
+	if mSpeed then
+		if isOff then
+			Actions.SetSpeed(nil)
+			return true, T(ar, "⚡ السرعة رجعت طبيعية (16)", "⚡ Speed back to normal (16)")
+		end
+		local v = clamp(num or CONFIG.DefaultSpeed, 0, 1000)
+		Actions.SetSpeed(v)
+		return true, T(ar, "⚡ السرعة دلوقتي " .. v, "⚡ Speed is now " .. v)
+	end
+
+	-- jump
+	if mJump then
+		if isOff then
+			Actions.SetJump(nil)
+			return true, T(ar, "⬆ القفز رجع طبيعي (50)", "⬆ Jump back to normal (50)")
+		end
+		local v = clamp(num or CONFIG.DefaultJump, 0, 1000)
+		Actions.SetJump(v)
+		return true, T(ar, "⬆ قوة القفز دلوقتي " .. v, "⬆ Jump power is now " .. v)
+	end
+
+	return false
+end
+
+---------------------------------------------------------------- OFFLINE KNOWLEDGE (used only if the AI can't be reached)
+local KB = {
+	{ k = { "انت مين", "مين انت", "من انت", "اسمك", "who are you", "your name" },
+		ar = "أنا RedxAI 🩸 مساعد جوه روبلوكس. بنفذ أوامر (طيران، سرعة، قفز) وبرد على أي سؤال بالذكاء الاصطناعي لما النت يكون شغال.",
+		en = "I'm RedxAI 🩸 an assistant inside Roblox. I run commands (fly, speed, jump) and answer any question with AI when the internet is available." },
+	{ k = { "تعمل ايه", "امكانياتك", "اوامرك", "مساعده", "help", "what can you do", "commands" },
+		ar = "الأوامر: طيران / طيران 80 / وقف الطيران — سرعة 150 — قفز 200 — قفز لانهائي — ريسيت. وأي سؤال تاني اسألني.",
+		en = "Commands: fly / fly 80 / stop fly — speed 150 — jump 200 — infinite jump — reset. Ask me anything else too." },
+	{ k = { "هاك", "هاكر", "هكر", "hack", "cheat", "غش" },
+		ar = "الهاك في روبلوكس يعني تعديل سلوك اللعبة (زي الطيران والسرعة) باستخدام Executor. ده بيخالف قواعد روبلوكس وممكن يعرض حسابك للبان.",
+		en = "Hacking in Roblox means changing game behavior (fly, speed...) with an executor. It breaks Roblox rules and can get your account banned." },
+	{ k = { "executor", "اكزكيوتور", "ايكسيكيوتور", "delta", "دلتا" },
+		ar = "الـ Executor برنامج بيشغّل سكريبتات Lua جوه روبلوكس. Delta واحد منهم وبيشتغل على الموبايل.",
+		en = "An executor runs Lua scripts inside Roblox. Delta is one of them and works on mobile." },
+	{ k = { "سكريبت", "script", "lua", "لوا" },
+		ar = "السكريبت كود Lua بيتنفذ جوه اللعبة. مثال: Humanoid.WalkSpeed = 100 بيخليك تجري أسرع.",
+		en = "A script is Lua code that runs inside the game. Example: Humanoid.WalkSpeed = 100 makes you run faster." },
+	{ k = { "بان", "ban", "حظر" },
+		ar = "البان بيحصل لو الأنتي-تشيت كشفك. الأمان الأكبر إنك تستخدم حساب تجريبي.",
+		en = "A ban happens when the anti-cheat detects you. Using an alt account is the safer option." },
+	{ k = { "anticheat", "anti cheat", "انتي تشيت", "byfron", "حمايه" },
+		ar = "الأنتي-تشيت نظام بيكشف الغش. روبلوكس بتستخدم Byfron وبعض السكريبتات بتتكسر معاه.",
+		en = "Anti-cheat detects cheating. Roblox uses Byfron and some scripts break because of it." },
+	{ k = { "roblox", "روبلوكس", "روبوكس" },
+		ar = "روبلوكس منصة ألعاب ضخمة، الألعاب فيها بيعملها المستخدمين بـ Roblox Studio ولغة Lua.",
+		en = "Roblox is a huge game platform where users build games with Roblox Studio and the Lua language." },
+	{ k = { "شكرا", "تسلم", "thanks", "thank you" },
+		ar = "العفو 💙 تحت أمرك.", en = "You're welcome 💙" },	{ k = { "السلام عليكم", "سلام", "اهلا", "مرحبا", "هاي", "hello", "hi", "hey" },
+		ar = "أهلاً بيك 👋 اسألني أي سؤال أو اطلب أمر.", en = "Hi 👋 ask me anything or give me a command." },
+}
+for _, e in ipairs(KB) do e.k = KW(e.k) end
+
+local function KBAnswer(text, ar)
+	local n = Clean(text)
+	for _, e in ipairs(KB) do
+		if HasAny(n, e.k) then return ar and e.ar or e.en end
+	end
+	return nil
+end
+--#END_LOGIC
+
+---------------------------------------------------------------- AI (online)
+local SYSTEM = "You are RedxAI, a smart and friendly assistant living inside a Roblox script. "
+	.. "Always answer in the same language the user writes in (Arabic or English only). "
+	.. "Answer ANY question helpfully and keep it short (max 5 sentences, no markdown). "
+	.. "You can also control the player: when the user asks for one of these actions, add the matching tag at the very end of your reply: "
+	.. "[[fly:on]] [[fly:off]] [[speed:NUMBER]] [[jump:NUMBER]] [[infjump:on]] [[infjump:off]] [[reset]]. Never use a tag otherwise."
+
+local httpRequest = (syn and syn.request) or (http and http.request) or http_request or (fluxus and fluxus.request) or request
+
+local function Http(method, url, headers, body)
+	if not httpRequest then return nil end
+	local ok, res = pcall(httpRequest, { Url = url, Method = method, Headers = headers, Body = body })
+	if not ok or type(res) ~= "table" then return nil end
+	local code = res.StatusCode or res.status_code
+	if code and (code < 200 or code >= 300) then return nil end
+	return res.Body or res.body
+end
+
+local function ParseBody(body)
+	if type(body) ~= "string" or body == "" then return nil end
+	if body:sub(1, 1) == "{" then
+		local ok, data = pcall(function() return HttpService:JSONDecode(body) end)
+		if ok and type(data) == "table" then
+			local ch = data.choices and data.choices[1]
+			local content = ch and ch.message and ch.message.content
+			if type(content) == "string" and content ~= "" then return content end
+			return nil
+		end
+	end
+	return body
+end
+
+local History = {}
+local function AskAI(text)
+	local messages = { { role = "system", content = SYSTEM } }
+	for _, m in ipairs(History) do messages[#messages + 1] = m end
+	messages[#messages + 1] = { role = "user", content = text }
+	local ans
+	if CONFIG.ApiKey ~= "" then
+		ans = ParseBody(Http("POST", CONFIG.ApiUrl,
+			{ ["Content-Type"] = "application/json", ["Authorization"] = "Bearer " .. CONFIG.ApiKey },
+			HttpService:JSONEncode({ model = CONFIG.Model, messages = messages })))
+	end
+	if not ans then
+		ans = ParseBody(Http("POST", "https://text.pollinations.ai/openai",
+			{ ["Content-Type"] = "application/json" },
+			HttpService:JSONEncode({ model = "openai", messages = messages })))
+	end
+	if not ans then
+		local url = "https://text.pollinations.ai/" .. HttpService:UrlEncode(text:sub(1, 400))
+			.. "?model=openai&system=" .. HttpService:UrlEncode(SYSTEM)
+		ans = ParseBody(Http("GET", url, {}))
+	end
+	return ans
+end
+
+-- the AI may append action tags like [[fly:on]] — run them and hide them
+local function ApplyTags(ans)
+	local did = false
+	for name, arg in ans:gmatch("%[%[%s*(%w+)%s*:?%s*([%w%.]*)%s*%]%]") do
+		name, arg = name:lower(), arg:lower()
+		if name == "fly" then
+			if arg == "off" then Actions.StopFly() else Actions.StartFly() end
+			did = true
+		elseif name == "speed" then
+			Actions.SetSpeed(clamp(tonumber(arg) or CONFIG.DefaultSpeed, 0, 1000)) did = true
+		elseif name == "jump" then
+			Actions.SetJump(clamp(tonumber(arg) or CONFIG.DefaultJump, 0, 1000)) did = true
+		elseif name == "infjump" then
+			Actions.SetInfJump(arg ~= "off") did = true
+		elseif name == "reset" then
+			Actions.ResetAll() did = true
+		end
+	end
+	local clean = ans:gsub("%[%[.-%]%]", "")
+	return (clean:match("^%s*(.-)%s*$")), did
+end
+
+---------------------------------------------------------------- UI (Blood Theme)
+local C = {
+	Bg = Color3.fromRGB(14, 5, 7),
+	Panel = Color3.fromRGB(30, 9, 13),
+	Bar = Color3.fromRGB(58, 4, 10),
+	Blood = Color3.fromRGB(184, 14, 30),
+	BloodBright = Color3.fromRGB(235, 45, 60),
+	BloodDark = Color3.fromRGB(96, 8, 18),
+	UserBubble = Color3.fromRGB(120, 12, 26),
+	BotBubble = Color3.fromRGB(32, 11, 15),
+	Text = Color3.fromRGB(246, 230, 230),
+	Sub = Color3.fromRGB(165, 125, 130),
+}
+
+local function New(class, props, parent)
+	local o = Instance.new(class)
+	for k, v in pairs(props) do o[k] = v end
+	if parent then o.Parent = parent end
+	return o
+end
+local function Round(o, r) return New("UICorner", { CornerRadius = UDim.new(0, r) }, o) end
+local function Stroke(o, col, th)
+	return New("UIStroke", { Color = col, Thickness = th or 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border }, o)
+end
+
+local PlayerGui = LP:WaitForChild("PlayerGui")
+local oldGui = PlayerGui:FindFirstChild("RedxAI")
+if oldGui then oldGui:Destroy() end
+local gui = New("ScreenGui", { Name = "RedxAI", ResetOnSpawn = false, IgnoreGuiInset = true,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 999 }, PlayerGui)
+
+local WIN_W, WIN_H = 340, 272
+local main = New("Frame", { Name = "Main", Size = UDim2.fromOffset(WIN_W, WIN_H),
+	Position = UDim2.new(0.5, -WIN_W / 2, 0.5, -WIN_H / 2), BackgroundColor3 = C.Bg,
+	BorderSizePixel = 0, Active = true, ClipsDescendants = true }, gui)
+Round(main, 10)
+Stroke(main, C.Blood, 1.5)
+
+-- title bar
+local bar = New("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Color3.new(1, 1, 1),
+	BorderSizePixel = 0, Active = true }, main)
+New("UIGradient", { Color = ColorSequence.new(C.Blood, C.Bar), Rotation = 0 }, bar)
+New("TextLabel", { Size = UDim2.new(0, 160, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
+	Text = "REDX AI", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 16,
+	TextXAlignment = Enum.TextXAlignment.Left }, bar)
+
+local function BarButton(txt, xOff)
+	local b = New("TextButton", { Size = UDim2.fromOffset(26, 22), Position = UDim2.new(1, xOff, 0, 6),
+		BackgroundColor3 = C.Bg, BackgroundTransparency = 0.35, Text = txt, TextColor3 = Color3.new(1, 1, 1),
+		Font = Enum.Font.GothamBold, TextSize = 14, AutoButtonColor = true }, bar)
+	Round(b, 6)
+	return b
+end
+local minBtn = BarButton("—", -64)
+local closeBtn = BarButton("X", -34)
+
+-- quick buttons
+local chipRow = New("Frame", { Position = UDim2.fromOffset(8, 40), Size = UDim2.fromOffset(324, 26), BackgroundTransparency = 1 }, main)
+New("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6) }, chipRow)
+local chips = {}
+local function MakeChip(key, label, fn)
+	local b = New("TextButton", { Size = UDim2.fromOffset(60, 26), BackgroundColor3 = C.Panel, Text = label,
+		TextColor3 = C.Text, Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = true }, chipRow)
+	Round(b, 6)
+	Stroke(b, C.BloodDark, 1)
+	Track(b.Activated:Connect(fn))
+	chips[key] = b
+end
+
+-- chat area
+local chat = New("ScrollingFrame", { Position = UDim2.fromOffset(8, 70), Size = UDim2.fromOffset(324, 156),
+	BackgroundColor3 = Color3.fromRGB(9, 3, 5), BorderSizePixel = 0, ScrollBarThickness = 3,
+	ScrollBarImageColor3 = C.Blood, CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y, ScrollingDirection = Enum.ScrollingDirection.Y }, main)
+Round(chat, 8)
+Stroke(chat, C.BloodDark, 1)
+New("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 8) }, chat)
+local chatLayout = New("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, chat)
+Track(chatLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	task.defer(function() chat.CanvasPosition = Vector2.new(0, 1e6) end)
+end))
+
+local order = 0
+local function SetBubble(b, text)
+	b.Text = text
+	b.TextXAlignment = HasArabic(text) and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+end
+local function AddMessage(text, kind)
+	order = order + 1
+	local isUser = kind == "user"
+	local row = New("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1, LayoutOrder = order }, chat)
+	local b = New("TextLabel", { AutomaticSize = Enum.AutomaticSize.XY, Size = UDim2.fromOffset(0, 0),
+		AnchorPoint = Vector2.new(isUser and 1 or 0, 0), Position = UDim2.new(isUser and 1 or 0, 0, 0, 0),
+		BackgroundColor3 = isUser and C.UserBubble or C.BotBubble, TextColor3 = C.Text,
+		Font = Enum.Font.GothamMedium, TextSize = 13, TextWrapped = true, RichText = false,
+		TextYAlignment = Enum.TextYAlignment.Top }, row)
+	New("UISizeConstraint", { MaxSize = Vector2.new(236, math.huge) }, b)
+	New("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9), PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }, b)
+	Round(b, 8)
+	if not isUser then Stroke(b, C.BloodDark, 1) end
+	SetBubble(b, text)
+	return b
+end
+
+-- input row
+local input = New("TextBox", { Position = UDim2.fromOffset(8, 232), Size = UDim2.fromOffset(262, 32),
+	BackgroundColor3 = C.Panel, TextColor3 = C.Text, PlaceholderColor3 = C.Sub,
+	PlaceholderText = "اسأل أو اكتب أمر… / Ask or command…", Text = "", ClearTextOnFocus = false,
+	Font = Enum.Font.GothamMedium, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left }, main)
+Round(input, 8)
+Stroke(input, C.BloodDark, 1)
+New("UIPadding", { PaddingLeft = UDim.new(0, 9), PaddingRight = UDim.new(0, 9) }, input)
+Track(input:GetPropertyChangedSignal("Text"):Connect(function()
+	input.TextXAlignment = HasArabic(input.Text) and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+end))
+local sendBtn = New("TextButton", { Position = UDim2.fromOffset(276, 232), Size = UDim2.fromOffset(56, 32),
+	BackgroundColor3 = C.Blood, Text = "Send", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
+	TextSize = 13, AutoButtonColor = true }, main)
+Round(sendBtn, 8)
+
+-- minimized square
+local mini = New("TextButton", { Name = "Mini", Size = UDim2.fromOffset(46, 46), Position = UDim2.fromOffset(20, 20),
+	BackgroundColor3 = C.Blood, Text = "R", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack,
+	TextSize = 24, AutoButtonColor = false, Visible = false, Active = true }, gui)
+Round(mini, 10)
+Stroke(mini, C.BloodBright, 1.5)
+
+-- up / down buttons for fly (visible only while flying)
+local flyPad = New("Frame", { Position = UDim2.new(1, -76, 0.5, -62), Size = UDim2.fromOffset(56, 124),
+	BackgroundTransparency = 1, Visible = false }, gui)
+local function HoldButton(label, y, val)
+	local b = New("TextButton", { Position = UDim2.fromOffset(0, y), Size = UDim2.fromOffset(56, 56),
+		BackgroundColor3 = C.Blood, BackgroundTransparency = 0.2, Text = label, TextColor3 = Color3.new(1, 1, 1),
+		Font = Enum.Font.GothamBlack, TextSize = 24, AutoButtonColor = false }, flyPad)
+	Round(b, 12)
+	Stroke(b, C.BloodBright, 1.5)
+	local function isPress(i) return i.UserInputType == Enum.UserInputType.Touch or i.UserInputType == Enum.UserInputType.MouseButton1 end
+	Track(b.InputBegan:Connect(function(i) if isPress(i) then FlyVert = val end end))
+	Track(b.InputEnded:Connect(function(i) if isPress(i) and FlyVert == val then FlyVert = 0 end end))
+end
+HoldButton("▲", 0, 1)
+HoldButton("▼", 68, -1)
+
+-- drag (touch + mouse)
+local function MakeDraggable(handle, target, onTap)
+	local dragging, moved, dragStart, startPos = false, false, nil, nil
+	Track(handle.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			dragging, moved, dragStart, startPos = true, false, i.Position, target.Position
+			i.Changed:Connect(function()
+				if i.UserInputState == Enum.UserInputState.End then
+					if dragging and onTap and not moved then onTap() end
+					dragging = false
+				end
+			end)
+		end
+	end))
+	Track(UIS.InputChanged:Connect(function(i)
+		if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+			local d = i.Position - dragStart
+			if d.Magnitude > 6 then moved = true end
+			if moved then
+				target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+			end
+		end
+	end))
+end
+
+local function Minimize()
+	local ap = main.AbsolutePosition
+	mini.Position = UDim2.fromOffset(ap.X, ap.Y)
+	main.Visible = false
+	mini.Visible = true
+end
+local function Restore()
+	local ap, vp = mini.AbsolutePosition, workspace.CurrentCamera.ViewportSize
+	main.Position = UDim2.fromOffset(clamp(ap.X, 0, math.max(0, vp.X - WIN_W)), clamp(ap.Y, 0, math.max(0, vp.Y - WIN_H)))
+	mini.Visible = false
+	main.Visible = true
+end
+MakeDraggable(bar, main)
+MakeDraggable(mini, mini, Restore)
+Track(minBtn.Activated:Connect(Minimize))
+
+-- chips state
+local function Paint(b, on) b.BackgroundColor3 = on and C.Blood or C.Panel end
+RefreshUI = function()
+	if not chips.fly then return end
+	Paint(chips.fly, State.Fly)
+	Paint(chips.speed, State.Speed ~= nil)
+	Paint(chips.jump, State.Jump ~= nil)
+	Paint(chips.inf, State.InfJump)
+	flyPad.Visible = State.Fly
+end
+MakeChip("fly", "Fly", function()
+	if State.Fly then Actions.StopFly() else Actions.StartFly() end
+end)
+MakeChip("speed", "Speed", function()
+	if State.Speed then Actions.SetSpeed(nil) else Actions.SetSpeed(CONFIG.DefaultSpeed) end
+end)
+MakeChip("jump", "Jump", function()
+	if State.Jump then Actions.SetJump(nil) else Actions.SetJump(CONFIG.DefaultJump) end
+end)
+MakeChip("inf", "Inf Jump", function() Actions.SetInfJump(not State.InfJump) end)
+MakeChip("reset", "Reset", function() Actions.ResetAll() end)
+RefreshUI()
+
+---------------------------------------------------------------- SEND
+local Busy = false
+local function Submit()
+	if Busy then return end
+	local text = (input.Text or ""):match("^%s*(.-)%s*$")
+	if text == "" then return end
+	input.Text = ""
+	AddMessage(text, "user")
+	Busy = true
+	task.spawn(function()
+		local ok, err = pcall(function()
+			local ar = HasArabic(text)
+			local handled, reply = TryCommand(text, ar)
+			if handled then
+				AddMessage(reply, "bot")
+				return
+			end
+			local bubble = AddMessage("• • •", "bot")
+			local ans = AskAI(text)
+			if ans then
+				ans = ans:gsub("%*%*", "")
+				local clean, did = ApplyTags(ans)
+				if clean == "" then clean = did and T(ar, "تمام ✅", "Done ✅") or "..." end
+				SetBubble(bubble, clean)
+				History[#History + 1] = { role = "user", content = text }
+				History[#History + 1] = { role = "assistant", content = clean }
+				while #History > CONFIG.MaxHistory do table.remove(History, 1) end
+			else
+				SetBubble(bubble, KBAnswer(text, ar) or T(ar,
+					"مقدرتش أوصل للذكاء الاصطناعي دلوقتي (النت أو الخدمة مشغولة). جرب كمان شوية، أو اكتب أمر زي: طيران / سرعة 100.",
+					"I couldn't reach the AI right now (internet or the free service is busy). Try again in a moment, or use a command like: fly / speed 100."))
+			end
+		end)
+		if not ok then AddMessage("⚠ " .. tostring(err), "bot") end
+		Busy = false
+	end)
+end
+Track(sendBtn.Activated:Connect(Submit))
+Track(input.FocusLost:Connect(function(enter) if enter then Submit() end end))
+
+---------------------------------------------------------------- UNLOAD
+local function Unload()
+	pcall(Actions.ResetAll)
+	for _, c in ipairs(Conns) do pcall(function() c:Disconnect() end) end
+	Conns = {}
+	gui:Destroy()
+	if env.RedxAI_Unload == Unload then env.RedxAI_Unload = nil end
+end
+env.RedxAI_Unload = Unload
+Track(closeBtn.Activated:Connect(Unload))
+
+AddMessage("أهلاً! أنا RedxAI 🩸 اسألني أي سؤال أو اطلب أمر: طيران، سرعة 100، قفز 150.\nHi! Ask me anything or give a command: fly, speed 100, jump 150.", "bot")
