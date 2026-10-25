@@ -1,4 +1,4 @@
---[[ RedxAI v27 | Part 1 of 3 | Core & Commands ]]
+--[[ RedxAI v28 | Part 1 of 3 | Core & Commands ]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -18,15 +18,22 @@ local origLight = { Brightness = Lighting.Brightness, ClockTime = Lighting.Clock
 
 local UpdateControlPanel = function() end
 
-local function dropConn(name) local c = Conns[name] if c then pcall(function() c:Disconnect() end) Conns[name] = nil end end
-local function setConn(name, c) dropConn(name) Conns[name] = c end
+local function dropConn(name) 
+    local c = Conns[name] 
+    if c then pcall(function() c:Disconnect() end) Conns[name] = nil end 
+end
+local function setConn(name, c) 
+    dropConn(name) 
+    Conns[name] = c 
+end
 local function trim(s) return (tostring(s or ""):match("^%s*(.-)%s*$")) end
 local function getHum() local c = LP.Character return c and c:FindFirstChildOfClass("Humanoid") end
 local function getRoot() local c = LP.Character return c and c:FindFirstChild("HumanoidRootPart") end
 local function getReq() return (syn and syn.request) or (http and http.request) or http_request or request end
 
 local function findPlayer(q)
-    q = trim(q):lower() if q == "" then return nil end
+    q = trim(q):lower() 
+    if q == "" then return nil end
     local list = Players:GetPlayers()
     for _, p in ipairs(list) do if p ~= LP and (p.Name:lower() == q or p.DisplayName:lower() == q) then return p end end
     for _, p in ipairs(list) do if p ~= LP and (p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q) then return p end end
@@ -40,11 +47,16 @@ local function getMoveVector()
     if not controlModule and not controlTried then
         controlTried = true
         pcall(function()
-            local ps = LP:FindFirstChild("PlayerScripts") local pm = ps and ps:FindFirstChild("PlayerModule") local cm = pm and pm:FindFirstChild("ControlModule")
+            local ps = LP:FindFirstChild("PlayerScripts") 
+            local pm = ps and ps:FindFirstChild("PlayerModule") 
+            local cm = pm and pm:FindFirstChild("ControlModule")
             if cm then controlModule = require(cm) end
         end)
     end
-    if controlModule then local ok, v = pcall(function() return controlModule:GetMoveVector() end) if ok and typeof(v) == "Vector3" then return v end end
+    if controlModule then 
+        local ok, v = pcall(function() return controlModule:GetMoveVector() end) 
+        if ok and typeof(v) == "Vector3" then return v end 
+    end
     local x, z = 0, 0
     if UIS:IsKeyDown(Enum.KeyCode.W) then z = z - 1 end
     if UIS:IsKeyDown(Enum.KeyCode.S) then z = z + 1 end
@@ -56,17 +68,37 @@ end
 function Cmd.fly(on, speed)
     if speed then State.FlySpeed = math.clamp(tonumber(speed) or 60, 1, 100000) end
     State.Fly = on and true or false
-    dropConn("fly") if FlyBV then FlyBV:Destroy() FlyBV = nil end if FlyBG then FlyBG:Destroy() FlyBG = nil end
+    dropConn("fly") 
+    if FlyBV then FlyBV:Destroy() FlyBV = nil end 
+    if FlyBG then FlyBG:Destroy() FlyBG = nil end
     local h, r = getHum(), getRoot()
-    if not State.Fly then if h then h.PlatformStand = false end UpdateControlPanel() return "🛑 Fly OFF" end
-    if not h or not r then State.Fly = false UpdateControlPanel() return "❌ No character" end
+    if not State.Fly then 
+        if h then h.PlatformStand = false end 
+        UpdateControlPanel() 
+        return "🛑 Fly OFF" 
+    end
+    if not h or not r then 
+        State.Fly = false 
+        UpdateControlPanel() 
+        return "❌ No character" 
+    end
     h.PlatformStand = true
-    FlyBV = Instance.new("BodyVelocity") FlyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5) FlyBV.Velocity = Vector3.new(0, 0, 0) FlyBV.Parent = r
-    FlyBG = Instance.new("BodyGyro") FlyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5) FlyBG.P = 1e4 FlyBG.Parent = r
+    FlyBV = Instance.new("BodyVelocity") 
+    FlyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5) 
+    FlyBV.Velocity = Vector3.new(0, 0, 0) 
+    FlyBV.Parent = r
+    FlyBG = Instance.new("BodyGyro") 
+    FlyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5) 
+    FlyBG.P = 1e4 
+    FlyBG.Parent = r
     setConn("fly", RS.RenderStepped:Connect(function()
-        local root = getRoot() if not State.Fly or not root or not FlyBV or not FlyBV.Parent then return end
-        local cam = workspace.CurrentCamera local mv = getMoveVector() local fwd = cam.CFrame.LookVector
-        local right = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z) if right.Magnitude > 0 then right = right.Unit end
+        local root = getRoot() 
+        if not State.Fly or not root or not FlyBV or not FlyBV.Parent then return end
+        local cam = workspace.CurrentCamera 
+        local mv = getMoveVector() 
+        local fwd = cam.CFrame.LookVector
+        local right = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z) 
+        if right.Magnitude > 0 then right = right.Unit end
         local dir = (fwd * -mv.Z) + (right * mv.X)
         if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0, 1, 0) end
@@ -78,57 +110,229 @@ function Cmd.fly(on, speed)
     return "✈ Fly ON (Speed: " .. State.FlySpeed .. ")"
 end
 
-function Cmd.speed(v) State.Speed = math.clamp(tonumber(v) or 16, 1, 100000) local h = getHum() if h then h.WalkSpeed = State.Speed end UpdateControlPanel() return "⚡ Speed: " .. State.Speed end
-function Cmd.speedoff() State.Speed = nil local h = getHum() if h then h.WalkSpeed = 16 end UpdateControlPanel() return "⚡ Speed: normal (16)" end
+function Cmd.speed(v) 
+    State.Speed = math.clamp(tonumber(v) or 16, 1, 100000) 
+    local h = getHum() 
+    if h then h.WalkSpeed = State.Speed end 
+    UpdateControlPanel() 
+    return "⚡ Speed: " .. State.Speed 
+end
+function Cmd.speedoff() 
+    State.Speed = nil 
+    local h = getHum() 
+    if h then h.WalkSpeed = 16 end 
+    UpdateControlPanel() 
+    return "⚡ Speed: normal (16)" 
+end
 
 function Cmd.jump(v)
-    if v == "inf" or v == "infinite" then State.InfJump = true setConn("infjump", UIS.JumpRequest:Connect(function() local h = getHum() if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end end)) return "♾️ Infinite Jump ON" end
-    State.Jump = math.clamp(tonumber(v) or 50, 1, 100000) local h = getHum() if h then h.UseJumpPower = true h.JumpPower = State.Jump end return "⬆ Jump: " .. State.Jump
+    if v == "inf" or v == "infinite" then 
+        State.InfJump = true 
+        setConn("infjump", UIS.JumpRequest:Connect(function() 
+            local h = getHum() 
+            if h then h:ChangeState(Enum.HumanoidStateType.Jumping) end 
+        end)) 
+        return "♾️ Infinite Jump ON" 
+    end
+    State.Jump = math.clamp(tonumber(v) or 50, 1, 100000) 
+    local h = getHum() 
+    if h then h.UseJumpPower = true h.JumpPower = State.Jump end 
+    return "⬆ Jump: " .. State.Jump
 end
-function Cmd.jumpoff() State.Jump = nil State.InfJump = false dropConn("infjump") local h = getHum() if h then h.UseJumpPower = true h.JumpPower = 50 end return "⬆ Jump: normal" end
+function Cmd.jumpoff() 
+    State.Jump = nil 
+    State.InfJump = false 
+    dropConn("infjump") 
+    local h = getHum() 
+    if h then h.UseJumpPower = true h.JumpPower = 50 end 
+    return "⬆ Jump: normal" 
+end
 
 function Cmd.noclip(on)
-    State.Noclip = on dropConn("noclip")
-    if on then setConn("noclip", RS.Stepped:Connect(function() local c = LP.Character if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.CanCollide = false end end end end)) return "👻 Noclip ON" end
-    local c = LP.Character if c then for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end end end return "👻 Noclip OFF"
+    State.Noclip = on 
+    dropConn("noclip")
+    if on then 
+        setConn("noclip", RS.Stepped:Connect(function() 
+            local c = LP.Character 
+            if c then 
+                for _, p in ipairs(c:GetDescendants()) do 
+                    if p:IsA("BasePart") then p.CanCollide = false end 
+                end 
+            end 
+        end)) 
+        return "👻 Noclip ON" 
+    end
+    local c = LP.Character 
+    if c then 
+        for _, p in ipairs(c:GetDescendants()) do 
+            if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end 
+        end 
+    end 
+    return "👻 Noclip OFF"
 end
 
-function Cmd.god(on) State.God = on local h = getHum() if h then if on then h.MaxHealth = math.huge h.Health = math.huge else h.MaxHealth = 100 h.Health = 100 end end return on and "🛡️ God Mode ON" or "🛡️ God Mode OFF" end
+function Cmd.god(on) 
+    State.God = on 
+    local h = getHum() 
+    if h then 
+        if on then 
+            h.MaxHealth = math.huge h.Health = math.huge 
+        else 
+            h.MaxHealth = 100 h.Health = 100 
+        end 
+    end 
+    return on and "🛡️ God Mode ON" or "🛡️ God Mode OFF" 
+end
 
 function Cmd.invisible(on)
-    State.Invisible = on dropConn("invis")
-    local function apply(v) local c = LP.Character if not c then return end for _, p in ipairs(c:GetDescendants()) do if p:IsA("BasePart") then p.LocalTransparencyModifier = v elseif p:IsA("Decal") then p.Transparency = v end end end
-    if on then apply(1) setConn("invis", RS.RenderStepped:Connect(function() apply(1) end)) return "👤 Invisible ON" end
-    apply(0) return "👤 Visible"
+    State.Invisible = on 
+    dropConn("invis")
+    local function apply(v) 
+        local c = LP.Character 
+        if not c then return end 
+        for _, p in ipairs(c:GetDescendants()) do 
+            if p:IsA("BasePart") then p.LocalTransparencyModifier = v 
+            elseif p:IsA("Decal") then p.Transparency = v end 
+        end 
+    end
+    if on then 
+        apply(1) 
+        setConn("invis", RS.RenderStepped:Connect(function() apply(1) end)) 
+        return "👤 Invisible ON" 
+    end
+    apply(0) 
+    return "👤 Visible"
 end
 
-function Cmd.spin(on, speed) State.Spin = on dropConn("spin") if on then local s = math.clamp(tonumber(speed) or 10, 1, 360) setConn("spin", RS.Heartbeat:Connect(function() local r = getRoot() if r then r.CFrame = r.CFrame * CFrame.Angles(0, math.rad(s), 0) end end)) return "🌀 Spin ON" end return "🌀 Spin OFF" end
+function Cmd.spin(on, speed) 
+    State.Spin = on 
+    dropConn("spin") 
+    if on then 
+        local s = math.clamp(tonumber(speed) or 10, 1, 360) 
+        setConn("spin", RS.Heartbeat:Connect(function() 
+            local r = getRoot() 
+            if r then r.CFrame = r.CFrame * CFrame.Angles(0, math.rad(s), 0) end 
+        end)) 
+        return "🌀 Spin ON" 
+    end 
+    return "🌀 Spin OFF" 
+end
 
 function Cmd.clicktp(on)
-    State.ClickTP = on dropConn("ctp1") dropConn("ctp2")
+    State.ClickTP = on 
+    dropConn("ctp1") 
+    dropConn("ctp2")
     if not on then return "🖱️ Click-TP OFF" end
     local function go(pos, viewport)
-        local cam = workspace.CurrentCamera local r = getRoot() if not cam or not r then return end
+        local cam = workspace.CurrentCamera 
+        local r = getRoot() 
+        if not cam or not r then return end
         local ray = viewport and cam:ViewportPointToRay(pos.X, pos.Y) or cam:ScreenPointToRay(pos.X, pos.Y)
-        local params = RaycastParams.new() params.FilterDescendantsInstances = {LP.Character} params.FilterType = Enum.RaycastFilterType.Exclude
-        local hit = workspace:Raycast(ray.Origin, ray.Direction * 3000, params) if hit then r.CFrame = CFrame.new(hit.Position + Vector3.new(0, 4, 0)) end
+        local params = RaycastParams.new() 
+        params.FilterDescendantsInstances = {LP.Character} 
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        local hit = workspace:Raycast(ray.Origin, ray.Direction * 3000, params) 
+        if hit then r.CFrame = CFrame.new(hit.Position + Vector3.new(0, 4, 0)) end
     end
-    setConn("ctp1", UIS.InputBegan:Connect(function(i, gp) if gp then return end if i.UserInputType == Enum.UserInputType.MouseButton1 and UIS:IsKeyDown(Enum.KeyCode.LeftControl) then go(UIS:GetMouseLocation(), true) end end))
-    setConn("ctp2", UIS.TouchTapInWorld:Connect(function(pos, processed) if not processed then go(pos, false) end end))
+    setConn("ctp1", UIS.InputBegan:Connect(function(i, gp) 
+        if gp then return end 
+        if i.UserInputType == Enum.UserInputType.MouseButton1 and UIS:IsKeyDown(Enum.KeyCode.LeftControl) then 
+            go(UIS:GetMouseLocation(), true) 
+        end 
+    end))
+    setConn("ctp2", UIS.TouchTapInWorld:Connect(function(pos, processed) 
+        if not processed then go(pos, false) end 
+    end))
     return "🖱️ Click-TP ON"
 end
 
-function Cmd.antiafk(on) State.AntiAFK = on dropConn("afk") if on then setConn("afk", LP.Idled:Connect(function() local VU = game:GetService("VirtualUser") VU:CaptureController() VU:ClickButton2(Vector2.new(0, 0)) end)) return "🛡️ Anti-AFK ON" end return "🛡️ Anti-AFK OFF" end
+function Cmd.antiafk(on) 
+    State.AntiAFK = on 
+    dropConn("afk") 
+    if on then 
+        setConn("afk", LP.Idled:Connect(function() 
+            local VU = game:GetService("VirtualUser") 
+            VU:CaptureController() 
+            VU:ClickButton2(Vector2.new(0, 0)) 
+        end)) 
+        return "🛡️ Anti-AFK ON" 
+    end 
+    return "🛡️ Anti-AFK OFF" 
+end
 function Cmd.sit() local h = getHum() if h then h.Sit = true end return "🪑 Sat down" end
 function Cmd.reset() local h = getHum() if h then h.Health = 0 end return "💀 Reset" end
 
-function Cmd.kill(name) local plr = findPlayer(name) if plr and plr.Character then local h = plr.Character:FindFirstChildOfClass("Humanoid") if h then h.Health = 0 return "💀 Killed " .. plr.Name end end return "❌ Player not found" end
-function Cmd.fling(name) local plr = findPlayer(name) local root = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") if root then local bv = Instance.new("BodyVelocity") bv.Velocity = Vector3.new(500, 500, 500) bv.MaxForce = Vector3.new(1e5, 1e5, 1e5) bv.Parent = root task.delay(2, function() bv:Destroy() end) return "🚀 Flung " .. plr.Name end return "❌ Player not found" end
-function Cmd.freeze(name) local plr = findPlayer(name) local root = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") if root then root.Anchored = not root.Anchored return (root.Anchored and "❄️ Froze " or "🔥 Unfroze ") .. plr.Name end return "❌ Player not found" end
-function Cmd.tp(name) local target = findPlayer(name) local tr = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") local r = getRoot() if tr and r then r.CFrame = tr.CFrame * CFrame.new(0, 0, 3) return "📍 Teleported to " .. target.Name end return "❌ Player not found" end
-function Cmd.bring(name) local target = findPlayer(name) local tr = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") local r = getRoot() if tr and r then tr.CFrame = r.CFrame * CFrame.new(0, 0, -3) return "📍 Brought " .. target.Name end return "❌ Player not found" end
-function Cmd.view(name) local cam = workspace.CurrentCamera name = trim(name) if name == "" or name:lower() == "off" then local h = getHum() if h then cam.CameraSubject = h end return "👁️ الكاميرا رجعت لك" end local plr = findPlayer(name) local h = plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") if h then cam.CameraSubject = h return "👁️ بتشوف " .. plr.Name end return "❌ Player not found" end
-function Cmd.players() local names = {} for _, p in ipairs(Players:GetPlayers()) do names[#names + 1] = p.Name end return "👥 (" .. #names .. ") " .. table.concat(names, ", ") end
+function Cmd.kill(name) 
+    local plr = findPlayer(name) 
+    if plr and plr.Character then 
+        local h = plr.Character:FindFirstChildOfClass("Humanoid") 
+        if h then h.Health = 0 return "💀 Killed " .. plr.Name end 
+    end 
+    return "❌ Player not found" 
+end
+function Cmd.fling(name) 
+    local plr = findPlayer(name) 
+    local root = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") 
+    if root then 
+        local bv = Instance.new("BodyVelocity") 
+        bv.Velocity = Vector3.new(500, 500, 500) 
+        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5) 
+        bv.Parent = root 
+        task.delay(2, function() bv:Destroy() end) 
+        return "🚀 Flung " .. plr.Name 
+    end 
+    return "❌ Player not found" 
+end
+function Cmd.freeze(name) 
+    local plr = findPlayer(name) 
+    local root = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") 
+    if root then 
+        root.Anchored = not root.Anchored 
+        return (root.Anchored and "❄️ Froze " or "🔥 Unfroze ") .. plr.Name 
+    end 
+    return "❌ Player not found" 
+end
+function Cmd.tp(name) 
+    local target = findPlayer(name) 
+    local tr = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") 
+    local r = getRoot() 
+    if tr and r then 
+        r.CFrame = tr.CFrame * CFrame.new(0, 0, 3) 
+        return "📍 Teleported to " .. target.Name 
+    end 
+    return "❌ Player not found" 
+end
+function Cmd.bring(name) 
+    local target = findPlayer(name) 
+    local tr = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") 
+    local r = getRoot() 
+    if tr and r then 
+        tr.CFrame = r.CFrame * CFrame.new(0, 0, -3) 
+        return "📍 Brought " .. target.Name 
+    end 
+    return "❌ Player not found" 
+end
+function Cmd.view(name) 
+    local cam = workspace.CurrentCamera 
+    name = trim(name) 
+    if name == "" or name:lower() == "off" then 
+        local h = getHum() 
+        if h then cam.CameraSubject = h end 
+        return "👁️ الكاميرا رجعت لك" 
+    end 
+    local plr = findPlayer(name) 
+    local h = plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid") 
+    if h then 
+        cam.CameraSubject = h 
+        return "👁️ بتشوف " .. plr.Name 
+    end 
+    return "❌ Player not found" 
+end
+function Cmd.players() 
+    local names = {} 
+    for _, p in ipairs(Players:GetPlayers()) do names[#names + 1] = p.Name end 
+    return "👥 (" .. #names .. ") " .. table.concat(names, ", ") 
+end
 
 function Cmd.savepos() local r = getRoot() if r then State.SavedPos = r.CFrame return "💾 Saved Position" end return "❌ No character" end
 function Cmd.loadpos() local r = getRoot() if r and State.SavedPos then r.CFrame = State.SavedPos return "📍 Loaded Position" end return "❌ No saved position" end
@@ -136,141 +340,211 @@ function Cmd.pos() local r = getRoot() if not r then return "❌ No character" e
 
 local function espAdd(plr)
     if plr == LP then return end
-    local function put(char) if not State.ESP or not char then return end local old = char:FindFirstChild("RedxESP") if old then old:Destroy() end local h = Instance.new("Highlight") h.Name = "RedxESP" h.FillColor = Color3.fromRGB(255, 0, 0) h.FillTransparency = 0.5 h.OutlineColor = Color3.fromRGB(255, 255, 255) h.Parent = char ESPObjects[#ESPObjects + 1] = h end
-    put(plr.Character) setConn("esp_" .. tostring(plr.UserId), plr.CharacterAdded:Connect(function(c) task.wait(0.5) put(c) end))
+    local function put(char) 
+        if not State.ESP or not char then return end 
+        local old = char:FindFirstChild("RedxESP") 
+        if old then old:Destroy() end 
+        local h = Instance.new("Highlight") 
+        h.Name = "RedxESP" 
+        h.FillColor = Color3.fromRGB(255, 0, 0) 
+        h.FillTransparency = 0.5 
+        h.OutlineColor = Color3.fromRGB(255, 255, 255) 
+        h.Parent = char 
+        ESPObjects[#ESPObjects + 1] = h 
+    end
+    put(plr.Character) 
+    setConn("esp_" .. tostring(plr.UserId), plr.CharacterAdded:Connect(function(c) task.wait(0.5) put(c) end))
 end
-function Cmd.esp(on) State.ESP = on for k in pairs(Conns) do if tostring(k):sub(1, 4) == "esp_" then dropConn(k) end end for _, o in ipairs(ESPObjects) do pcall(function() o:Destroy() end) end ESPObjects = {} if not on then return "👁️ ESP OFF" end for _, p in ipairs(Players:GetPlayers()) do espAdd(p) end setConn("esp_join", Players.PlayerAdded:Connect(function(p) espAdd(p) end)) return "👁️ ESP ON" end
+function Cmd.esp(on) 
+    State.ESP = on 
+    for k in pairs(Conns) do 
+        if tostring(k):sub(1, 4) == "esp_" then dropConn(k) end 
+    end 
+    for _, o in ipairs(ESPObjects) do pcall(function() o:Destroy() end) end 
+    ESPObjects = {} 
+    if not on then return "👁️ ESP OFF" end 
+    for _, p in ipairs(Players:GetPlayers()) do espAdd(p) end 
+    setConn("esp_join", Players.PlayerAdded:Connect(function(p) espAdd(p) end)) 
+    return "👁️ ESP ON" 
+end
 
-function Cmd.fullbright(on) if on == false then for k, v in pairs(origLight) do pcall(function() Lighting[k] = v end) end return "💡 Fullbright OFF" end Lighting.Brightness = 2 Lighting.ClockTime = 12 Lighting.FogEnd = 100000 Lighting.GlobalShadows = false Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128) return "💡 Fullbright ON" end
+function Cmd.fullbright(on) 
+    if on == false then 
+        for k, v in pairs(origLight) do pcall(function() Lighting[k] = v end) end 
+        return "💡 Fullbright OFF" 
+    end 
+    Lighting.Brightness = 2 
+    Lighting.ClockTime = 12 
+    Lighting.FogEnd = 100000 
+    Lighting.GlobalShadows = false 
+    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128) 
+    return "💡 Fullbright ON" 
+end
 function Cmd.day() Lighting.ClockTime = 14 return "☀️ نهار" end
 function Cmd.night() Lighting.ClockTime = 0 return "🌙 ليل" end
 function Cmd.gravity(v) local g = tonumber(v) or 196.2 workspace.Gravity = g return "🌍 Gravity: " .. g end
-function Cmd.btools() local bp = LP:FindFirstChildOfClass("Backpack") or LP:FindFirstChild("Backpack") if bp then for _, name in ipairs({"Grab", "Clone", "Hammer"}) do pcall(function() local t = Instance.new("HopperBin") t.BinType = Enum.BinType[name] t.Name = name t.Parent = bp end) end end return "🛠️ Btools given" end
-function Cmd.serverhop() local TS = game:GetService("TeleportService") local req = getReq() if req then local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100" local ok, res = pcall(req, {Url = url, Method = "GET"}) if ok and res and res.Body then local ok2, data = pcall(function() return HS:JSONDecode(res.Body) end) if ok2 and data and data.data then for _, srv in ipairs(data.data) do if srv.id ~= game.JobId and srv.playing < srv.maxPlayers then TS:TeleportToPlaceInstance(game.PlaceId, srv.id, LP) return "🌐 Server Hopping..." end end end end end return "❌ No servers found" end
-function Cmd.rejoin() local TS = game:GetService("TeleportService") if #Players:GetPlayers() <= 1 then TS:Teleport(game.PlaceId, LP) else TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) end return "🔄 Rejoining..." end
-function Cmd.chat(msg) msg = trim(msg) if msg == "" then return "❌ رسالة فاضية" end local TCS = game:GetService("TextChatService") local okV, ver = pcall(function() return TCS.ChatVersion end) if okV and ver == Enum.ChatVersion.TextChatService then local chans = TCS:FindFirstChild("TextChannels") local ch = chans and chans:FindFirstChild("RBXGeneral") if ch then ch:SendAsync(msg) return "💬 Sent: " .. msg end end local event = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents") local say = event and event:FindFirstChild("SayMessageRequest") if say then say:FireServer(msg, "All") return "💬 Sent: " .. msg end return "❌ Chat not available" end
+function Cmd.btools() 
+    local bp = LP:FindFirstChildOfClass("Backpack") or LP:FindFirstChild("Backpack") 
+    if bp then 
+        for _, name in ipairs({"Grab", "Clone", "Hammer"}) do 
+            pcall(function() 
+                local t = Instance.new("HopperBin") 
+                t.BinType = Enum.BinType[name] 
+                t.Name = name 
+                t.Parent = bp 
+            end) 
+        end 
+    end 
+    return "🛠️ Btools given" 
+end
+function Cmd.serverhop() 
+    local TS = game:GetService("TeleportService") 
+    local req = getReq() 
+    if req then 
+        local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100" 
+        local ok, res = pcall(req, {Url = url, Method = "GET"}) 
+        if ok and res and res.Body then 
+            local ok2, data = pcall(function() return HS:JSONDecode(res.Body) end) 
+            if ok2 and data and data.data then 
+                for _, srv in ipairs(data.data) do 
+                    if srv.id ~= game.JobId and srv.playing < srv.maxPlayers then 
+                        TS:TeleportToPlaceInstance(game.PlaceId, srv.id, LP) 
+                        return "🌐 Server Hopping..." 
+                    end 
+                end 
+            end 
+        end 
+    end 
+    return "❌ No servers found" 
+end
+function Cmd.rejoin() 
+    local TS = game:GetService("TeleportService") 
+    if #Players:GetPlayers() <= 1 then 
+        TS:Teleport(game.PlaceId, LP) 
+    else 
+        TS:TeleportToPlaceInstance(game.PlaceId, game.JobId, LP) 
+    end 
+    return "🔄 Rejoining..." 
+end
+function Cmd.chat(msg) 
+    msg = trim(msg) 
+    if msg == "" then return "❌ رسالة فاضية" end 
+    local TCS = game:GetService("TextChatService") 
+    local okV, ver = pcall(function() return TCS.ChatVersion end) 
+    if okV and ver == Enum.ChatVersion.TextChatService then 
+        local chans = TCS:FindFirstChild("TextChannels") 
+        local ch = chans and chans:FindFirstChild("RBXGeneral") 
+        if ch then ch:SendAsync(msg) return "💬 Sent: " .. msg end 
+    end 
+    local event = game:GetService("ReplicatedStorage"):FindFirstChild("DefaultChatSystemChatEvents") 
+    local say = event and event:FindFirstChild("SayMessageRequest") 
+    if say then say:FireServer(msg, "All") return "💬 Sent: " .. msg end 
+    return "❌ Chat not available" 
+end
 function Cmd.help() return "📖 أمثلة للأوامر:\n• طيران 100 | شيل الطيران\n• سرعة 50 | قفز 120 | قفز لا نهائي\n• نوكليب | جود | اختفاء | اس بي\n• هات احمد | روح لاحمد | شوف احمد\n• كليك تيليبورت | دوران | ضد افك\n• خليها نهار | خليها ليل | فول برايت\n• احفظ | ارجع | احداثيات | اللاعبين\n• /clear يمسح ذاكرة المحادثة" end
 
-setConn("hb", RS.Heartbeat:Connect(function() local h = getHum() if not h then return end if State.Speed and h.WalkSpeed ~= State.Speed then h.WalkSpeed = State.Speed end if State.Jump then if not h.UseJumpPower then h.UseJumpPower = true end if h.JumpPower ~= State.Jump then h.JumpPower = State.Jump end end if State.God and h.Health < h.MaxHealth then h.Health = h.MaxHealth end end))
-setConn("char", LP.CharacterAdded:Connect(function() task.wait(0.8) if State.Fly then Cmd.fly(true) end if State.Invisible then Cmd.invisible(true) end end))--[[ RedxAI v27 | Part 2 of 3 | Smart AI & Parser ]]
+setConn("hb", RS.Heartbeat:Connect(function() 
+    local h = getHum() 
+    if not h then return end 
+    if State.Speed and h.WalkSpeed ~= State.Speed then h.WalkSpeed = State.Speed end 
+    if State.Jump then 
+        if not h.UseJumpPower then h.UseJumpPower = true end 
+        if h.JumpPower ~= State.Jump then h.JumpPower = State.Jump end 
+    end 
+    if State.God and h.Health < h.MaxHealth then h.Health = h.MaxHealth end 
+end))
+setConn("char", LP.CharacterAdded:Connect(function() 
+    task.wait(0.8) 
+    if State.Fly then Cmd.fly(true) end 
+    if State.Invisible then Cmd.invisible(true) end 
+end))--[[ RedxAI v28 | Part 2 of 3 | Smart AI & Parser ]]
 
--- ===== تطبيع النص العربي =====
-local CPMAP = {
-    [0x0623] = 0x0627, [0x0625] = 0x0627, [0x0622] = 0x0627, [0x0671] = 0x0627,
-    [0x0649] = 0x064A, [0x06CC] = 0x064A, [0x0629] = 0x0647, [0x06A9] = 0x0643,
-    [0x060C] = 0x20, [0x061F] = 0x20, [0x061B] = 0x20,
-}
-local function norm(s)
-    s = tostring(s or "")
-    local ok, res = pcall(function()
-        local out = {}
-        for _, cp in utf8.codes(s) do
-            if (cp >= 0x064B and cp <= 0x065F) or cp == 0x0640 then
-            else
-                if cp >= 0x0660 and cp <= 0x0669 then cp = cp - 0x0660 + 0x30 end
-                out[#out + 1] = utf8.char(CPMAP[cp] or cp)
-            end
-        end
-        return table.concat(out)
-    end)
-    return string.lower(ok and res or s)
+local CPMAP = { [0x0623] = 0x0627, [0x0625] = 0x0627, [0x0622] = 0x0627, [0x0671] = 0x0627, [0x0649] = 0x064A, [0x06CC] = 0x064A, [0x0629] = 0x0647, [0x06A9] = 0x0643, [0x060C] = 0x20, [0x061F] = 0x20, [0x061B] = 0x20 }
+
+local function norm(s) 
+    s = tostring(s or "") 
+    local ok, res = pcall(function() 
+        local out = {} 
+        for _, cp in utf8.codes(s) do 
+            if (cp >= 0x064B and cp <= 0x065F) or cp == 0x0640 then 
+            else 
+                if cp >= 0x0660 and cp <= 0x0669 then cp = cp - 0x0660 + 0x30 end 
+                out[#out + 1] = utf8.char(CPMAP[cp] or cp) 
+            end 
+        end 
+        return table.concat(out) 
+    end) 
+    return string.lower(ok and res or s) 
 end
 
-local function K(...)
-    local t = {}
-    for _, w in ipairs({...}) do t[#t + 1] = norm(w) end
-    return t
+local function K(...) local t = {} for _, w in ipairs({...}) do t[#t + 1] = norm(w) end return t end
+
+local function tokenize(t) 
+    local toks = {} 
+    for w in t:gmatch("[^%s%p]+") do 
+        toks[#toks + 1] = w 
+        local f = w:sub(1, 2) 
+        if (f == "و" or f == "ب" or f == "ف") and #w > 4 then toks[#toks + 1] = w:sub(3) end 
+    end 
+    return toks 
 end
 
-local function tokenize(t)
-    local toks = {}
-    for w in t:gmatch("[^%s%p]+") do
-        toks[#toks + 1] = w
-        local f = w:sub(1, 2)
-        if (f == "و" or f == "ب" or f == "ف") and #w > 4 then toks[#toks + 1] = w:sub(3) end
-    end
-    return toks
+local function hasWord(t, toks, kw) 
+    if kw:find(" ", 1, true) then return (" " .. t):find(" " .. kw, 1, true) ~= nil end 
+    local isAscii = not kw:find("[\128-\255]") 
+    local n = #kw 
+    for _, w in ipairs(toks) do 
+        if w == kw then return true end 
+        if not isAscii then 
+            if w == "ال" .. kw then return true end 
+            if #w > n and w:sub(1, n) == kw and #w <= n + 6 then return true end 
+        end 
+    end 
+    return false 
 end
 
-local function hasWord(t, toks, kw)
-    if kw:find(" ", 1, true) then
-        return (" " .. t):find(" " .. kw, 1, true) ~= nil
-    end
-    local isAscii = not kw:find("[\128-\255]")
-    local n = #kw
-    for _, w in ipairs(toks) do
-        if w == kw then return true end
-        if not isAscii then
-            if w == "ال" .. kw then return true end
-            if #w > n and w:sub(1, n) == kw and #w <= n + 6 then return true end
-        end
-    end
-    return false
+local function anyWord(t, toks, list) for _, kw in ipairs(list) do if hasWord(t, toks, kw) then return true end end return false end
+
+local function afterKeyword(t, kw) 
+    local init = 1 
+    while true do 
+        local s, e = t:find(kw, init, true) 
+        if not s then return nil end 
+        if s == 1 or t:sub(s - 1, s - 1) == " " then return trim(t:sub(e + 1)) end 
+        init = e + 1 
+    end 
 end
 
-local function anyWord(t, toks, list)
-    for _, kw in ipairs(list) do
-        if hasWord(t, toks, kw) then return true end
-    end
-    return false
-end
-
-local function afterKeyword(t, kw)
-    local init = 1
-    while true do
-        local s, e = t:find(kw, init, true)
-        if not s then return nil end
-        if s == 1 or t:sub(s - 1, s - 1) == " " then return trim(t:sub(e + 1)) end
-        init = e + 1
-    end
-end
-
-local OFFWORDS = K("شيل", "وقف", "اوقف", "ايقاف", "اطفي", "طفي", "الغاء", "الغي", "بطل", "اقفل", "قفل",
-    "ازل", "ازاله", "امسح", "off", "stop", "disable", "remove", "cancel", "reset", "ريسيت", "unview")
-local QUESTIONW = K("ازاي", "ليه", "لييه", "يعني", "ايه", "هل", "ماذا", "كيف", "لماذا", "what", "how", "why",
-    "explain", "اشرح", "وضح", "ينفع", "معني")
+local OFFWORDS = K("شيل", "وقف", "اوقف", "ايقاف", "اطفي", "طفي", "الغاء", "الغي", "بطل", "اقفل", "قفل", "ازل", "ازاله", "امسح", "off", "stop", "disable", "remove", "cancel", "reset", "ريسيت", "unview")
+local QUESTIONW = K("ازاي", "ليه", "لييه", "يعني", "ايه", "هل", "ماذا", "كيف", "لماذا", "what", "how", "why", "explain", "اشرح", "وضح", "ينفع", "معني")
 local QEXACT = K("شو", "وش")
 
-local function isQuestion(raw, t, toks)
-    if raw:find("?", 1, true) or raw:find("؟", 1, true) then return true end
-    for _, w in ipairs(toks) do
-        for _, q in ipairs(QEXACT) do
-            if w == q then return true end
-        end
-    end
-    return anyWord(t, toks, QUESTIONW)
+local function isQuestion(raw, t, toks) 
+    if raw:find("?", 1, true) or raw:find("؟", 1, true) then return true end 
+    for _, w in ipairs(toks) do 
+        for _, q in ipairs(QEXACT) do 
+            if w == q then return true end 
+        end 
+    end 
+    return anyWord(t, toks, QUESTIONW) 
 end
 
--- ===== الأوامر المباشرة =====
 local Features = {
-    {kw = K("قفز لا نهائي", "قفز لانهائي", "اقفز لا نهائي", "infinite jump", "inf jump", "infjump"),
-        on = function() return Cmd.jump("inf") end, off = function() return Cmd.jumpoff() end},
-    {kw = K("طيران", "طير", "فلاي", "fly"),
-        on = function(n) return Cmd.fly(true, n) end, off = function() return Cmd.fly(false) end},
-    {kw = K("نوكليب", "noclip", "no clip"),
-        on = function() return Cmd.noclip(true) end, off = function() return Cmd.noclip(false) end},
-    {kw = K("جود", "god", "خلود"),
-        on = function() return Cmd.god(true) end, off = function() return Cmd.god(false) end},
-    {kw = K("انفزبل", "انفزنال", "invisible", "اختفاء", "اختفي", "اخفيني"),
-        on = function() return Cmd.invisible(true) end, off = function() return Cmd.invisible(false) end},
-    {kw = K("اس بي", "اسبي", "esp", "wallhack"),
-        on = function() return Cmd.esp(true) end, off = function() return Cmd.esp(false) end},
-    {kw = K("دوران", "spin", "لف"),
-        on = function(n) return Cmd.spin(true, n) end, off = function() return Cmd.spin(false) end},
-    {kw = K("كليك تيليبورت", "clicktp", "click tp", "كليك تي بي"),
-        on = function() return Cmd.clicktp(true) end, off = function() return Cmd.clicktp(false) end},
-    {kw = K("antiafk", "ضد افك", "ضد afk", "منع الطرد"),
-        on = function() return Cmd.antiafk(true) end, off = function() return Cmd.antiafk(false) end},
-    {kw = K("فول برايت", "فولبرايت", "fullbright", "full bright"),
-        on = function() return Cmd.fullbright(true) end, off = function() return Cmd.fullbright(false) end},
+    {kw = K("قفز لا نهائي", "قفز لانهائي", "اقفز لا نهائي", "infinite jump", "inf jump", "infjump"), on = function() return Cmd.jump("inf") end, off = function() return Cmd.jumpoff() end},
+    {kw = K("طيران", "طير", "فلاي", "fly"), on = function(n) return Cmd.fly(true, n) end, off = function() return Cmd.fly(false) end},
+    {kw = K("نوكليب", "noclip", "no clip"), on = function() return Cmd.noclip(true) end, off = function() return Cmd.noclip(false) end},
+    {kw = K("جود", "god", "خلود"), on = function() return Cmd.god(true) end, off = function() return Cmd.god(false) end},
+    {kw = K("انفزبل", "انفزنال", "invisible", "اختفاء", "اختفي", "اخفيني"), on = function() return Cmd.invisible(true) end, off = function() return Cmd.invisible(false) end},
+    {kw = K("اس بي", "اسبي", "esp", "wallhack"), on = function() return Cmd.esp(true) end, off = function() return Cmd.esp(false) end},
+    {kw = K("دوران", "spin", "لف"), on = function(n) return Cmd.spin(true, n) end, off = function() return Cmd.spin(false) end},
+    {kw = K("كليك تيليبورت", "clicktp", "click tp", "كليك تي بي"), on = function() return Cmd.clicktp(true) end, off = function() return Cmd.clicktp(false) end},
+    {kw = K("antiafk", "ضد افك", "ضد afk", "منع الطرد"), on = function() return Cmd.antiafk(true) end, off = function() return Cmd.antiafk(false) end},
+    {kw = K("فول برايت", "فولبرايت", "fullbright", "full bright"), on = function() return Cmd.fullbright(true) end, off = function() return Cmd.fullbright(false) end},
     {kw = K("خليها نهار", "اجعلها نهار"), on = function() return Cmd.day() end},
     {kw = K("خليها ليل", "اجعلها ليل"), on = function() return Cmd.night() end},
-    {kw = K("سرعه", "سبيد", "speed", "ws", "walkspeed"),
-        on = function(n) return Cmd.speed(n or 100) end, off = function() return Cmd.speedoff() end},
-    {kw = K("قفز", "اقفز", "جمب", "jump", "jp"),
-        on = function(n) return Cmd.jump(n or 150) end, off = function() return Cmd.jumpoff() end},
-    {kw = K("جاذبيه", "gravity"),
-        on = function(n) return Cmd.gravity(n or 50) end, off = function() return Cmd.gravity(196.2) end},
+    {kw = K("سرعه", "سبيد", "speed", "ws", "walkspeed"), on = function(n) return Cmd.speed(n or 100) end, off = function() return Cmd.speedoff() end},
+    {kw = K("قفز", "اقفز", "جمب", "jump", "jp"), on = function(n) return Cmd.jump(n or 150) end, off = function() return Cmd.jumpoff() end},
+    {kw = K("جاذبيه", "gravity"), on = function(n) return Cmd.gravity(n or 50) end, off = function() return Cmd.gravity(196.2) end},
     {kw = K("ادوات", "btools"), on = function() return Cmd.btools() end},
     {kw = K("سيرفر جديد", "غير السيرفر", "serverhop"), on = function() return Cmd.serverhop() end},
     {kw = K("ريجوين", "rejoin"), on = function() return Cmd.rejoin() end},
@@ -300,29 +574,25 @@ local function ParseDirectCommands(txt)
     if isQuestion(txt, t, toks) then return nil end
     local num = tonumber(t:match("%d+%.?%d*"))
     local isOff = anyWord(t, toks, OFFWORDS)
-
     if isOff and anyWord(t, toks, VIEWWORDS) then return Cmd.view("") end
-
-    for _, nc in ipairs(NameCmds) do
-        for _, kw in ipairs(nc.kw) do
-            local rest = afterKeyword(t, kw)
-            if rest and rest ~= "" then
-                local p = findPlayer(rest)
-                if p then return nc.run(p.Name) end
-            end
-        end
+    for _, nc in ipairs(NameCmds) do 
+        for _, kw in ipairs(nc.kw) do 
+            local rest = afterKeyword(t, kw) 
+            if rest and rest ~= "" then 
+                local p = findPlayer(rest) 
+                if p then return nc.run(p.Name) end 
+            end 
+        end 
     end
-
-    for _, f in ipairs(Features) do
-        if anyWord(t, toks, f.kw) then
-            if isOff and f.off then return f.off(num, t) end
-            return f.on(num, t)
-        end
+    for _, f in ipairs(Features) do 
+        if anyWord(t, toks, f.kw) then 
+            if isOff and f.off then return f.off(num, t) end 
+            return f.on(num, t) 
+        end 
     end
     return nil
 end
 
--- ===== الذكاء الاصطناعي =====
 local LangNames = {ar = "Arabic", en = "English", fr = "French", es = "Spanish", de = "German", tr = "Turkish"}
 local History = {{}, {}, {}}
 local MAX_HIST = 14
@@ -330,44 +600,21 @@ local MAX_HIST = 14
 local function langHint(text)
     local L = LangNames[State.Lang]
     if L then return L end
-    if text:find("[\216-\219]") then
-        return "Arabic (match the user's dialect, e.g. Egyptian Arabic if they write in Egyptian)"
-    end
+    if text:find("[\216-\219]") then return "Arabic (match the user's dialect, e.g. Egyptian Arabic if they write in Egyptian)" end
     return "English"
 end
 
-local TAGLIST = "[[fly:SPEED]] [[fly:off]] [[speed:NUM]] [[speed:off]] [[jump:NUM]] [[jump:inf]] [[jump:off]] "
-    .. "[[noclip:on]] [[noclip:off]] [[god:on]] [[god:off]] [[invisible:on]] [[invisible:off]] [[esp:on]] [[esp:off]] "
-    .. "[[spin:on]] [[spin:off]] [[clicktp:on]] [[clicktp:off]] [[antiafk:on]] [[antiafk:off]] "
-    .. "[[fullbright:on]] [[fullbright:off]] [[gravity:NUM]] [[day]] [[night]] [[sit]] [[reset]] "
-    .. "[[tp:NAME]] [[bring:NAME]] [[kill:NAME]] [[fling:NAME]] [[freeze:NAME]] [[view:NAME]] [[view:off]] "
-    .. "[[savepos]] [[loadpos]] [[pos]] [[players]] [[btools]] [[serverhop]] [[rejoin]] [[chat:MSG]]"
+local TAGLIST = "[[fly:SPEED]] [[fly:off]] [[speed:NUM]] [[speed:off]] [[jump:NUM]] [[jump:inf]] [[jump:off]] [[noclip:on]] [[noclip:off]] [[god:on]] [[god:off]] [[invisible:on]] [[invisible:off]] [[esp:on]] [[esp:off]] [[spin:on]] [[spin:off]] [[clicktp:on]] [[clicktp:off]] [[antiafk:on]] [[antiafk:off]] [[fullbright:on]] [[fullbright:off]] [[gravity:NUM]] [[day]] [[night]] [[sit]] [[reset]] [[tp:NAME]] [[bring:NAME]] [[kill:NAME]] [[fling:NAME]] [[freeze:NAME]] [[view:NAME]] [[view:off]] [[savepos]] [[loadpos]] [[pos]] [[players]] [[btools]] [[serverhop]] [[rejoin]] [[chat:MSG]]"
 
 local function BuildSystem(mode, text)
     local L = langHint(text)
-    -- التعديل الجديد: تعليمات صارمة للتقسيم
     local splitRule = "\nCRITICAL RULE ABOUT SPLITTING: If the user asks you to send something 'in 2 parts', 'in 3 parts', 'على 3 مرات', etc., you MUST send ONLY the first part in this message. At the very end of your message, write EXACTLY: '(اكتب: الباقي) للحصول على الجزء التالي' (or 'Say (Next) for the next part' in English). Wait for the user to ask for the next part before sending Part 2."
-
-    if mode == 3 then
-        return "You are RedxAI Scripter, an elite Roblox Lua scripter for Delta executor.\n"
-            .. "RULES:\n"
-            .. "1. Write the script IMMEDIATELY. Never ask for clarification.\n"
-            .. "2. Output ONLY raw Lua code. No markdown fences.\n"
-            .. "3. Write all code comments in " .. L .. "."
-            .. splitRule
-    elseif mode == 2 then
-        return "You are RedxAI CodeMaster, an expert Roblox Lua developer.\n"
-            .. "Explain clearly and helpfully. Put code inside ```lua blocks.\n"
-            .. "Reply in " .. L .. "."
-            .. splitRule
+    if mode == 3 then 
+        return "You are RedxAI Scripter, an elite Roblox Lua scripter for Delta executor.\nRULES:\n1. Write the script IMMEDIATELY. Never ask for clarification.\n2. Output ONLY raw Lua code. No markdown fences.\n3. Write all code comments in " .. L .. "." .. splitRule
+    elseif mode == 2 then 
+        return "You are RedxAI CodeMaster, an expert Roblox Lua developer.\nExplain clearly and helpfully. Put code inside ```lua blocks.\nReply in " .. L .. "." .. splitRule
     end
-    return "You are RedxAI, a brilliant, warm and genuinely helpful AI assistant inside a Roblox executor (Delta) chat window.\n"
-        .. "HOW TO ANSWER:\n"
-        .. "- Answer accurately and thoroughly. Remember past messages.\n"
-        .. "- If asked for a script, write it completely inside a ```lua block.\n"
-        .. "- Reply in " .. L .. ".\n"
-        .. "GAME ACTIONS: When the user asks you to DO something in the game, write a short reply and put the matching command tag(s) at the VERY END. Tags: " .. TAGLIST
-        .. splitRule
+    return "You are RedxAI, a brilliant, warm and genuinely helpful AI assistant inside a Roblox executor (Delta) chat window.\nHOW TO ANSWER:\n- Answer accurately and thoroughly. Remember past messages.\n- If asked for a script, write it completely inside a ```lua block.\n- Reply in " .. L .. ".\nGAME ACTIONS: When the user asks you to DO something in the game, write a short reply and put the matching command tag(s) at the VERY END. Tags: " .. TAGLIST .. splitRule
 end
 
 local function pushHist(mode, q, a)
@@ -377,9 +624,7 @@ local function pushHist(mode, q, a)
     while #h > MAX_HIST do table.remove(h, 1) end
 end
 
-local function looksLikeCode(s)
-    return (s:find("local ", 1, true) or s:find("game", 1, true) or s:find("function", 1, true)) and true or false
-end
+local function looksLikeCode(s) return (s:find("local ", 1, true) or s:find("game", 1, true) or s:find("function", 1, true)) and true or false end
 
 local function AskAI(text, mode, force)
     local req = getReq()
@@ -395,14 +640,10 @@ local function AskAI(text, mode, force)
         u = text .. "\n\n(Reply language: " .. L .. ")"
     end
     msgs[#msgs + 1] = {role = "user", content = u}
-    
     for _, model in ipairs({"openai", "mistral"}) do
         local ok, body = pcall(function() return HS:JSONEncode({model = model, messages = msgs}) end)
         if ok then
-            local ok1, res = pcall(req, {
-                Url = "https://text.pollinations.ai/openai", Method = "POST",
-                Headers = {["Content-Type"] = "application/json"}, Body = body,
-            })
+            local ok1, res = pcall(req, {Url = "https://text.pollinations.ai/openai", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = body})
             if ok1 and res and res.Body then
                 local ok2, data = pcall(function() return HS:JSONDecode(res.Body) end)
                 if ok2 and type(data) == "table" and data.choices and data.choices[1] and data.choices[1].message then
@@ -415,21 +656,12 @@ local function AskAI(text, mode, force)
     return nil, "server"
 end
 
--- ===== تنفيذ أوسمة الأوامر =====
-local function onoff(a)
-    a = tostring(a or ""):lower()
-    return not (a == "off" or a == "false" or a == "0" or a == "no")
-end
+local function onoff(a) a = tostring(a or ""):lower() return not (a == "off" or a == "false" or a == "0" or a == "no") end
 
 local Tags = {
     fly = function(a) if a:lower() == "off" then return Cmd.fly(false) end return Cmd.fly(true, tonumber(a)) end,
     speed = function(a) if tonumber(a) then return Cmd.speed(tonumber(a)) end return Cmd.speedoff() end,
-    jump = function(a)
-        a = a:lower()
-        if a == "inf" then return Cmd.jump("inf") end
-        if tonumber(a) then return Cmd.jump(tonumber(a)) end
-        return Cmd.jumpoff()
-    end,
+    jump = function(a) a = a:lower() if a == "inf" then return Cmd.jump("inf") end if tonumber(a) then return Cmd.jump(tonumber(a)) end return Cmd.jumpoff() end,
     noclip = function(a) return Cmd.noclip(onoff(a)) end,
     god = function(a) return Cmd.god(onoff(a)) end,
     invisible = function(a) return Cmd.invisible(onoff(a)) end,
@@ -470,15 +702,13 @@ local function ApplyTags(txt)
         return ""
     end)
     clean = trim(clean)
-    if #res > 0 then
-        clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n")
-    end
+    if #res > 0 then clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n") end
     return clean
-end--[[ RedxAI v27 | Part 3 of 3 | UI & Run ]]
+end--[[ RedxAI v28 | Part 3 of 3 | UI & Run ]]
 
 local PlayerGui = LP:WaitForChild("PlayerGui")
 local gui = Instance.new("ScreenGui")
-gui.Name = "RedxAI_v27"
+gui.Name = "RedxAI_v28"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 999
 gui.Parent = PlayerGui
@@ -496,7 +726,6 @@ local function corner(o, r)
     return c
 end
 
--- ===== لوحة التحكم (شمال - عرضية) =====
 local controlPanel = new("Frame", {
     Name = "ControlPanel", Size = UDim2.fromOffset(430, 50), Position = UDim2.new(0, 10, 0.5, -25),
     BackgroundColor3 = Color3.fromRGB(20, 10, 15), BorderSizePixel = 0, Active = true, ZIndex = 5
@@ -527,21 +756,11 @@ local walkPlus = makeBtn(controlPanel, "+", Color3.fromRGB(10, 150, 20), 9)
 local walkBtn = new("TextButton", {Size = UDim2.fromOffset(50, 30), BackgroundColor3 = Color3.fromRGB(150, 10, 20), Text = "WALK", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 12, LayoutOrder = 10}, controlPanel)
 corner(walkBtn, 6)
 
--- تحديث الألوان (أخضر لو شغال، أحمر لو فاصل)
 UpdateControlPanel = function()
     flyLabel.Text = tostring(State.FlySpeed)
-    if State.Fly then 
-        flyBtn.BackgroundColor3 = Color3.fromRGB(10, 200, 20) -- أخضر
-    else 
-        flyBtn.BackgroundColor3 = Color3.fromRGB(200, 10, 20) -- أحمر
-    end
-    
+    if State.Fly then flyBtn.BackgroundColor3 = Color3.fromRGB(10, 200, 20) else flyBtn.BackgroundColor3 = Color3.fromRGB(200, 10, 20) end
     walkLabel.Text = tostring(State.Speed or 16)
-    if State.Speed then 
-        walkBtn.BackgroundColor3 = Color3.fromRGB(10, 200, 20) -- أخضر
-    else 
-        walkBtn.BackgroundColor3 = Color3.fromRGB(200, 10, 20) -- أحمر
-    end
+    if State.Speed then walkBtn.BackgroundColor3 = Color3.fromRGB(10, 200, 20) else walkBtn.BackgroundColor3 = Color3.fromRGB(200, 10, 20) end
 end
 
 flyBtn.MouseButton1Click:Connect(function() Cmd.fly(not State.Fly) end)
@@ -551,7 +770,6 @@ flyPlus.MouseButton1Click:Connect(function() Cmd.fly(State.Fly, State.FlySpeed +
 walkMinus.MouseButton1Click:Connect(function() local cur = State.Speed or 16 Cmd.speed(math.max(1, cur - 10)) end)
 walkPlus.MouseButton1Click:Connect(function() local cur = State.Speed or 16 Cmd.speed(cur + 10) end)
 
--- ===== الجزء الأساسي من الواجهة (الشات) =====
 local ModeInfo = {
     {icon = "💬", name = "محادثة وأوامر", color = Color3.fromRGB(80, 10, 15), ph = "اكتب سؤالك أو أمرك...", chatBg = Color3.fromRGB(10, 4, 5), bubble = Color3.fromRGB(30, 10, 15)},
     {icon = "🧠", name = "مساعد البرمجة", color = Color3.fromRGB(200, 150, 0), ph = "اسألني عن أي سكريبت...", chatBg = Color3.fromRGB(20, 15, 5), bubble = Color3.fromRGB(30, 20, 5)},
@@ -562,10 +780,7 @@ local Langs = { {code = "auto", name = "🌐 تلقائي"}, {code = "ar", name 
 local smallSize, largeSize = UDim2.fromOffset(320, 220), UDim2.fromOffset(320, 420)
 local isMaximized = false
 
-local main = new("Frame", {
-    Name = "Main", Size = smallSize, Position = UDim2.new(0.5, -160, 0.5, -110),
-    BackgroundColor3 = Color3.fromRGB(18, 8, 10), BorderSizePixel = 0, Active = true, ClipsDescendants = true, ZIndex = 10
-}, gui)
+local main = new("Frame", {Name = "Main", Size = smallSize, Position = UDim2.new(0.5, -160, 0.5, -110), BackgroundColor3 = Color3.fromRGB(18, 8, 10), BorderSizePixel = 0, Active = true, ClipsDescendants = true, ZIndex = 10}, gui)
 corner(main, 10)
 new("UIStroke", {Color = Color3.fromRGB(150, 20, 30), Thickness = 1.5}, main)
 
@@ -583,30 +798,19 @@ local minBtn = headBtn("🗗", -92)
 local langBtn = headBtn("🌐", -122)
 local codeBtn = headBtn("💬", -178, 50)
 
-local langFrame = new("ScrollingFrame", {
-    Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40), BackgroundColor3 = Color3.fromRGB(25, 8, 12),
-    BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 20
-}, main)
+local langFrame = new("ScrollingFrame", {Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40), BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 20}, main)
 corner(langFrame, 8)
 new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
 new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
 
-local chat = new("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 1, -90), Position = UDim2.fromOffset(8, 42), BackgroundColor3 = ModeInfo[1].chatBg,
-    BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 10
-}, main)
+local chat = new("ScrollingFrame", {Size = UDim2.new(1, -16, 1, -90), Position = UDim2.fromOffset(8, 42), BackgroundColor3 = ModeInfo[1].chatBg, BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 10}, main)
 corner(chat, 8)
 new("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, chat)
 new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, chat)
 
 local function scrollDown() task.wait() chat.CanvasPosition = Vector2.new(0, chat.AbsoluteCanvasSize.Y) end
+local function setBubbleText(bubble, s) if #s > 100000000 then s = s:sub(1, 100000000) .. "\n... (النص طويل جداً)" end bubble.Text = s end
 
-local function setBubbleText(bubble, s)
-    if #s > 100000000 then s = s:sub(1, 100000000) .. "\n... (النص طويل جداً)" end
-    bubble.Text = s
-end
-
--- ===== شاشة القارئ الشامل (Zoom) =====
 local readerOverlay = new("TextButton", {Name = "ReaderOverlay", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0), BackgroundTransparency = 0.6, Visible = false, ZIndex = 50, Text = "", AutoButtonColor = false}, gui)
 local readerFrame = new("Frame", {Name = "ReaderFrame", Size = UDim2.new(0.9, 0, 0.85, 0), Position = UDim2.new(0.05, 0, 0.05, 0), BackgroundColor3 = Color3.fromRGB(20, 5, 8), BorderSizePixel = 0, Visible = false, ZIndex = 51, Active = true}, gui)
 corner(readerFrame, 10)
@@ -626,35 +830,25 @@ local function closeReader() readerOverlay.Visible = false readerFrame.Visible =
 rClose.MouseButton1Click:Connect(closeReader) readerOverlay.MouseButton1Click:Connect(closeReader)
 rCopy.MouseButton1Click:Connect(function() local clip = setclipboard or toclipboard or set_clipboard local ok = clip and pcall(clip, rText.Text) rCopy.Text = ok and "✅ تم" or "⚠ مش مدعوم" task.wait(1.3) rCopy.Text = "📋 نسخ" end)
 
--- ===== الرسائل =====
 local msgCount = 0
 local function addMsg(txt, isUser)
     msgCount = msgCount + 1
     local container = new("Frame", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = msgCount}, chat)
     new("UIListLayout", {Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder}, container)
-    local bubble = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1, BackgroundColor3 = isUser and Color3.fromRGB(90, 15, 25) or ModeInfo[State.Mode].bubble,
-        TextColor3 = Color3.fromRGB(240, 220, 225), Font = Enum.Font.Code, TextSize = 13, TextWrapped = true, TextXAlignment = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left, AutoButtonColor = false, Text = ""
-    }, container)
+    local bubble = new("TextButton", {Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1, BackgroundColor3 = isUser and Color3.fromRGB(90, 15, 25) or ModeInfo[State.Mode].bubble, TextColor3 = Color3.fromRGB(240, 220, 225), Font = Enum.Font.Code, TextSize = 13, TextWrapped = true, TextXAlignment = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left, AutoButtonColor = false, Text = ""}, container)
     corner(bubble, 6)
     new("UIPadding", {PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7)}, bubble)
-    
     setBubbleText(bubble, txt)
-    
-    -- إصلاح المشكلة: ميفتحش الزوم غير لما الكلام يخلص
-    bubble.MouseButton1Click:Connect(function()
-        if bubble.Text ~= "" and not bubble.Text:find("جاري التفكير") then openReader(bubble.Text) end
-    end)
-    scrollDown() return bubble, container
+    bubble.MouseButton1Click:Connect(function() if bubble.Text ~= "" and not bubble.Text:find("جاري التفكير") then openReader(bubble.Text) end end)
+    scrollDown() 
+    return bubble, container
 end
 
 local function attachCopy(container, rawText)
     local row = new("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 2}, container)
     local btn = new("TextButton", {Size = UDim2.fromOffset(95, 22), BackgroundColor3 = Color3.fromRGB(45, 12, 18), Text = "📋 نسخ", TextColor3 = Color3.fromRGB(120, 210, 255), Font = Enum.Font.GothamBold, TextSize = 12}, row)
     corner(btn, 6)
-    btn.MouseButton1Click:Connect(function()
-        local clip = setclipboard or toclipboard or set_clipboard local ok = clip and pcall(clip, rawText) btn.Text = ok and "✅ تم النسخ" or "⚠ مش مدعوم" task.wait(1.3) btn.Text = "📋 نسخ"
-    end)
+    btn.MouseButton1Click:Connect(function() local clip = setclipboard or toclipboard or set_clipboard local ok = clip and pcall(clip, rawText) btn.Text = ok and "✅ تم النسخ" or "⚠ مش مدعوم" task.wait(1.3) btn.Text = "📋 نسخ" end)
     scrollDown()
 end
 
@@ -678,14 +872,24 @@ end
 
 local function Submit()
     if State.Busy then return end
-    local txt = trim(input.Text) if txt == "" then return end
-    input.Text = "" addMsg(txt, true) State.Busy = true
+    local txt = trim(input.Text) 
+    if txt == "" then return end
+    input.Text = "" 
+    addMsg(txt, true) 
+    State.Busy = true
     task.spawn(function()
         local ok, err = pcall(function()
             local nt = norm(txt)
-            if nt == "/clear" or nt == "clear" then History[1], History[2], History[3] = {}, {}, {} addMsg("🧹 مسحت ذاكرة المحادثة.", false) return end
+            if nt == "/clear" or nt == "clear" then 
+                History[1], History[2], History[3] = {}, {}, {} 
+                addMsg("🧹 مسحت ذاكرة المحادثة.", false) 
+                return 
+            end
             local mode = State.Mode
-            if mode == 1 then local direct = ParseDirectCommands(txt) if direct then addMsg(direct, false) return end end
+            if mode == 1 then 
+                local direct = ParseDirectCommands(txt) 
+                if direct then addMsg(direct, false) return end 
+            end
             local bubble, container = addMsg("🤔 جاري التفكير...", false)
             local thinking = true
             task.spawn(function() local n = 0 while thinking do n = n % 3 + 1 bubble.Text = "🤔 جاري التفكير" .. string.rep(".", n) task.wait(0.4) end end)
@@ -693,14 +897,15 @@ local function Submit()
             if ans and mode == 3 and not looksLikeCode(stripFences(ans)) then ans = AskAI(txt, mode, true) or ans end
             thinking = false
             if not ans then
-                if why == "no_http" then setBubbleText(bubble, "⚠ الإكسيكيوتر بتاعك مش بيدعم الاتصال بالإنترنت (request).")
-                else setBubbleText(bubble, "⚠ السيرفر مشغول أو النت ضعيف، جرب تاني بعد ثواني.") end
+                if why == "no_http" then setBubbleText(bubble, "⚠ الإكسيكيوتر بتاعك مش بيدعم الاتصال بالإنترنت (request).") else setBubbleText(bubble, "⚠ السيرفر مشغول أو النت ضعيف، جرب تاني بعد ثواني.") end
             else
                 local clean = ans
                 if mode == 3 then clean = stripFences(ans) bubble.TextColor3 = Color3.fromRGB(150, 255, 150)
                 elseif mode == 1 then clean = ApplyTags(ans) end
                 if clean == "" then clean = "✅ تم" end
-                pushHist(mode, txt, ans) setBubbleText(bubble, clean) attachCopy(container, clean)
+                pushHist(mode, txt, ans) 
+                setBubbleText(bubble, clean) 
+                attachCopy(container, clean)
             end
             scrollDown()
         end)
@@ -714,8 +919,19 @@ input.FocusLost:Connect(function(enter) if enter then Submit() end end)
 
 local function makeDraggable(handle, target, key)
     local dragging, dragStart, startPos, moved = false, nil, nil, false
-    handle.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = true moved = false dragStart = i.Position startPos = target.Position i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then dragging = false end end) end end)
-    setConn(key, UIS.InputChanged:Connect(function(i) if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - dragStart if d.Magnitude > 4 then moved = true end target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) end end))
+    handle.InputBegan:Connect(function(i) 
+        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then 
+            dragging = true moved = false dragStart = i.Position startPos = target.Position 
+            i.Changed:Connect(function() if i.UserInputState == Enum.UserInputState.End then dragging = false end end) 
+        end 
+    end)
+    setConn(key, UIS.InputChanged:Connect(function(i) 
+        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then 
+            local d = i.Position - dragStart 
+            if d.Magnitude > 4 then moved = true end 
+            target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y) 
+        end 
+    end))
     return function() return moved end
 end
 makeDraggable(bar, main, "drag_main")
@@ -731,7 +947,7 @@ closeBtn.MouseButton1Click:Connect(function()
     pcall(Cmd.fly, false) pcall(Cmd.noclip, false) pcall(Cmd.god, false) pcall(Cmd.esp, false) pcall(Cmd.invisible, false) pcall(Cmd.spin, false) pcall(Cmd.clicktp, false) pcall(Cmd.antiafk, false) pcall(Cmd.speedoff) pcall(Cmd.jumpoff)
     for k in pairs(Conns) do dropConn(k) end gui:Destroy()
 end)
-env.RedxAI_Unload = function() closeBtn:Destroy() closeBtn:Destroy() end -- dummy
+env.RedxAI_Unload = function() closeBtn:Destroy() closeBtn:Destroy() end
 
 UpdateControlPanel()
-addMsg("مرحباً! أنا RedxAI v27 🩸\nاللوحة على الشمال للتحكم السريع. اضغط على أي رسالة لقراءتها بملء الشاشة.", false)
+addMsg("مرحباً! أنا RedxAI v28 🩸\nاللوحة على الشمال للتحكم السريع. اضغط على أي رسالة لقراءتها بملء الشاشة.", false)
