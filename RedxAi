@@ -1,4 +1,4 @@
---[[ RedxAI v42.0 | Part 1 of 3 | Core & Commands ]]
+--[[ RedxAI v43.0 | Part 1 of 3 | Core & Commands ]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -12,7 +12,7 @@ if env.RedxAI_Unload then pcall(env.RedxAI_Unload) end
 local State = {
     Fly = false, FlySpeed = 60, Speed = nil, Jump = nil, Noclip = false, God = false,
     ESP = false, InfJump = false, Invisible = false, Spin = false, ClickTP = false,
-    AntiAFK = false, Busy = false, Lang = "auto", Mode = 1, SavedPos = nil, ShowPanel = false,
+    AntiAFK = false, Busy = false, Lang = "ar", Mode = 1, SavedPos = nil, ShowPanel = false,
     ActivePanel = ""
 }
 local Conns = {}
@@ -108,50 +108,50 @@ function Cmd.fly(on, speed)
     dropConn("fly")
     if FlyBV then FlyBV:Destroy() FlyBV = nil end
     if FlyBG then FlyBG:Destroy() FlyBG = nil end
-    
+
     local h, r = getHum(), getRoot()
-    
+
     if not State.Fly then
         if h then h.PlatformStand = false end
         if UpdatePanel then UpdatePanel() end
         return "Fly OFF"
     end
-    
+
     if not h or not r then 
         State.Fly = false 
         return "No character" 
     end
-    
+
     h.PlatformStand = true
     FlyBV = Instance.new("BodyVelocity")
     FlyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
     FlyBV.Velocity = Vector3.new(0, 0, 0)
     FlyBV.Parent = r
-    
+
     FlyBG = Instance.new("BodyGyro")
     FlyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
     FlyBG.P = 1e4
     FlyBG.Parent = r
-    
+
     setConn("fly", RS.RenderStepped:Connect(function()
         local root = getRoot()
         if not State.Fly or not root or not FlyBV or not FlyBV.Parent then return end
-        
+
         local cam = workspace.CurrentCamera
         local mv = getMoveVector()
         local fwd = cam.CFrame.LookVector
         local right = Vector3.new(cam.CFrame.RightVector.X, 0, cam.CFrame.RightVector.Z)
         if right.Magnitude > 0 then right = right.Unit end
-        
+
         local dir = (fwd * -mv.Z) + (right * mv.X)
         if UIS:IsKeyDown(Enum.KeyCode.Space) then dir = dir + Vector3.new(0, 1, 0) end
         if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then dir = dir - Vector3.new(0, 1, 0) end
         if dir.Magnitude > 1 then dir = dir.Unit end
-        
+
         FlyBV.Velocity = dir * State.FlySpeed
         FlyBG.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(fwd.X, 0, fwd.Z))
     end))
-    
+
     if UpdatePanel then UpdatePanel() end
     return "Fly ON (Speed: " .. State.FlySpeed .. ")"
 end
@@ -583,21 +583,13 @@ setConn("char", LP.CharacterAdded:Connect(function()
     if State.Fly then Cmd.fly(true) end 
     if State.Invisible then Cmd.invisible(true) end 
 end))
---[[ RedxAI v42.0 | Part 2 of 3 | Parser & Smart AI Engine ]]
+--[[ RedxAI v43.0 | Part 2A | Parser & Commands ]]
 
 -- ═══ تطبيع النص العربي ═══
 local CPMAP = {
-    [0x0623] = 0x0627, -- أ -> ا
-    [0x0625] = 0x0627, -- إ -> ا
-    [0x0622] = 0x0627, -- آ -> ا
-    [0x0671] = 0x0627, -- ٱ -> ا
-    [0x0649] = 0x064A, -- ى -> ي
-    [0x06CC] = 0x064A, -- ی -> ي
-    [0x0629] = 0x0647, -- ة -> ه
-    [0x06A9] = 0x0643, -- ک -> ك
-    [0x060C] = 0x20,   -- ، -> مسافة
-    [0x061F] = 0x20,   -- ؟ -> مسافة
-    [0x061B] = 0x20,   -- ؛ -> مسافة
+    [0x0623] = 0x0627, [0x0625] = 0x0627, [0x0622] = 0x0627, [0x0671] = 0x0627,
+    [0x0649] = 0x064A, [0x06CC] = 0x064A, [0x0629] = 0x0647, [0x06A9] = 0x0643,
+    [0x060C] = 0x20, [0x061F] = 0x20, [0x061B] = 0x20,
 }
 
 local function norm(s)
@@ -606,11 +598,8 @@ local function norm(s)
         local out = {}
         for _, cp in utf8.codes(s) do
             if (cp >= 0x064B and cp <= 0x065F) or cp == 0x0640 then
-                -- تجاهل التشكيل والتطويل
             else
-                if cp >= 0x0660 and cp <= 0x0669 then 
-                    cp = cp - 0x0660 + 0x30 
-                end
+                if cp >= 0x0660 and cp <= 0x0669 then cp = cp - 0x0660 + 0x30 end
                 out[#out + 1] = utf8.char(CPMAP[cp] or cp)
             end
         end
@@ -621,9 +610,7 @@ end
 
 local function K(...)
     local t = {}
-    for _, w in ipairs({...}) do
-        t[#t + 1] = norm(w)
-    end
+    for _, w in ipairs({...}) do t[#t + 1] = norm(w) end
     return t
 end
 
@@ -632,17 +619,13 @@ local function tokenize(t)
     for w in t:gmatch("[^%s%p]+") do
         toks[#toks + 1] = w
         local f = w:sub(1, 2)
-        if (f == "و" or f == "ب" or f == "ف") and #w > 4 then
-            toks[#toks + 1] = w:sub(3)
-        end
+        if (f == "و" or f == "ب" or f == "ف") and #w > 4 then toks[#toks + 1] = w:sub(3) end
     end
     return toks
 end
 
 local function hasWord(t, toks, kw)
-    if kw:find(" ", 1, true) then
-        return (" " .. t):find(" " .. kw, 1, true) ~= nil
-    end
+    if kw:find(" ", 1, true) then return (" " .. t):find(" " .. kw, 1, true) ~= nil end
     local isAscii = not kw:find("[\128-\255]")
     local n = #kw
     for _, w in ipairs(toks) do
@@ -656,11 +639,7 @@ local function hasWord(t, toks, kw)
 end
 
 local function anyWord(t, toks, list)
-    for _, kw in ipairs(list) do
-        if hasWord(t, toks, kw) then
-            return true
-        end
-    end
+    for _, kw in ipairs(list) do if hasWord(t, toks, kw) then return true end end
     return false
 end
 
@@ -669,9 +648,7 @@ local function afterKeyword(t, kw)
     while true do
         local s, e = t:find(kw, init, true)
         if not s then return nil end
-        if s == 1 or t:sub(s - 1, s - 1) == " " then
-            return trim(t:sub(e + 1))
-        end
+        if s == 1 or t:sub(s - 1, s - 1) == " " then return trim(t:sub(e + 1)) end
         init = e + 1
     end
 end
@@ -684,169 +661,58 @@ local SCRIPTW = K("سكريبت","سكربت","اسكريبت","سكريبتات
 
 local function isQuestion(raw, t, toks)
     if raw:find("?", 1, true) or raw:find("؟", 1, true) then return true end
-    for _, w in ipairs(toks) do
-        for _, q in ipairs(QEXACT) do
-            if w == q then return true end
-        end
-    end
+    for _, w in ipairs(toks) do for _, q in ipairs(QEXACT) do if w == q then return true end end end
     return anyWord(t, toks, QUESTIONW)
 end
 
 -- ═══ جدول الأوامر ═══
 local Features = {
-    {
-        kw = K("قفز لا نهائي", "قفز لانهائي", "اقفز لا نهائي", "infinite jump", "inf jump", "infjump"),
-        on = function() return Cmd.jump("inf") end,
-        off = function() return Cmd.jumpoff() end
-    },
-    {
-        kw = K("طيران", "طير", "فلاي", "fly"),
-        on = function(n) State.ShowPanel = true; State.ActivePanel = "fly"; return Cmd.fly(true, n) end,
-        off = function() return Cmd.fly(false) end
-    },
-    {
-        kw = K("نوكليب", "noclip", "no clip"),
-        on = function() State.ShowPanel = true; State.ActivePanel = "noclip"; return Cmd.noclip(true) end,
-        off = function() return Cmd.noclip(false) end
-    },
-    {
-        kw = K("جود", "god", "خلود"),
-        on = function() return Cmd.god(true) end,
-        off = function() return Cmd.god(false) end
-    },
-    {
-        kw = K("انفزبل", "انفزنال", "invisible", "اختفاء", "اختفي", "اخفيني"),
-        on = function() return Cmd.invisible(true) end,
-        off = function() return Cmd.invisible(false) end
-    },
-    {
-        kw = K("اس بي", "اسبي", "esp", "wallhack"),
-        on = function() return Cmd.esp(true) end,
-        off = function() return Cmd.esp(false) end
-    },
-    {
-        kw = K("دوران", "spin", "لف"),
-        on = function(n) return Cmd.spin(true, n) end,
-        off = function() return Cmd.spin(false) end
-    },
-    {
-        kw = K("كليك تيليبورت", "clicktp", "click tp", "كليك تي بي"),
-        on = function() return Cmd.clicktp(true) end,
-        off = function() return Cmd.clicktp(false) end
-    },
-    {
-        kw = K("antiafk", "ضد افك", "ضد afk", "منع الطرد"),
-        on = function() return Cmd.antiafk(true) end,
-        off = function() return Cmd.antiafk(false) end
-    },
-    {
-        kw = K("فول برايت", "فولبرايت", "fullbright", "full bright"),
-        on = function() return Cmd.fullbright(true) end,
-        off = function() return Cmd.fullbright(false) end
-    },
-    {
-        kw = K("خليها نهار", "اجعلها نهار"),
-        on = function() return Cmd.day() end
-    },
-    {
-        kw = K("خليها ليل", "اجعلها ليل"),
-        on = function() return Cmd.night() end
-    },
-    {
-        kw = K("سرعه", "سبيد", "speed", "ws", "walkspeed"),
-        on = function(n) State.ShowPanel = true; State.ActivePanel = "speed"; return Cmd.speed(n or 100) end,
-        off = function() return Cmd.speedoff() end
-    },
-    {
-        kw = K("قفز", "اقفز", "جمب", "jump", "jp"),
-        on = function(n) return Cmd.jump(n or 150) end,
-        off = function() return Cmd.jumpoff() end
-    },
-    {
-        kw = K("جاذبيه", "gravity"),
-        on = function(n) return Cmd.gravity(n or 50) end,
-        off = function() return Cmd.gravity(196.2) end
-    },
-    {
-        kw = K("ادوات", "btools"),
-        on = function() return Cmd.btools() end
-    },
-    {
-        kw = K("سيرفر جديد", "غير السيرفر", "serverhop"),
-        on = function() return Cmd.serverhop() end
-    },
-    {
-        kw = K("ريجوين", "rejoin"),
-        on = function() return Cmd.rejoin() end
-    },
-    {
-        kw = K("اقعد", "sit"),
-        on = function() return Cmd.sit() end
-    },
-    {
-        kw = K("احفظ", "savepos"),
-        on = function() return Cmd.savepos() end
-    },
-    {
-        kw = K("ارجع", "loadpos"),
-        on = function() return Cmd.loadpos() end
-    },
-    {
-        kw = K("احداثيات", "coords", "مكاني"),
-        on = function() return Cmd.pos() end
-    },
-    {
-        kw = K("اللاعبين", "players"),
-        on = function() return Cmd.players() end
-    },
-    {
-        kw = K("اوامر", "مساعده", "help"),
-        on = function() return Cmd.help() end
-    },
-    {
-        kw = K("ريسيت", "reset", "respawn"),
-        on = function() return Cmd.reset() end
-    },
+    {kw = K("قفز لا نهائي","قفز لانهائي","infinite jump","infjump"), on = function() return Cmd.jump("inf") end, off = function() return Cmd.jumpoff() end},
+    {kw = K("طيران","طير","فلاي","fly"), on = function(n) State.ShowPanel = true; State.ActivePanel = "fly"; return Cmd.fly(true, n) end, off = function() return Cmd.fly(false) end},
+    {kw = K("نوكليب","noclip"), on = function() State.ShowPanel = true; State.ActivePanel = "noclip"; return Cmd.noclip(true) end, off = function() return Cmd.noclip(false) end},
+    {kw = K("جود","god","خلود"), on = function() return Cmd.god(true) end, off = function() return Cmd.god(false) end},
+    {kw = K("انفزبل","invisible","اختفاء"), on = function() return Cmd.invisible(true) end, off = function() return Cmd.invisible(false) end},
+    {kw = K("اس بي","esp"), on = function() return Cmd.esp(true) end, off = function() return Cmd.esp(false) end},
+    {kw = K("دوران","spin"), on = function(n) return Cmd.spin(true, n) end, off = function() return Cmd.spin(false) end},
+    {kw = K("كليك تيليبورت","clicktp"), on = function() return Cmd.clicktp(true) end, off = function() return Cmd.clicktp(false) end},
+    {kw = K("antiafk","ضد افك"), on = function() return Cmd.antiafk(true) end, off = function() return Cmd.antiafk(false) end},
+    {kw = K("فول برايت","fullbright"), on = function() return Cmd.fullbright(true) end, off = function() return Cmd.fullbright(false) end},
+    {kw = K("خليها نهار"), on = function() return Cmd.day() end},
+    {kw = K("خليها ليل"), on = function() return Cmd.night() end},
+    {kw = K("سرعه","سبيد","speed","ws"), on = function(n) State.ShowPanel = true; State.ActivePanel = "speed"; return Cmd.speed(n or 100) end, off = function() return Cmd.speedoff() end},
+    {kw = K("قفز","اقفز","jump"), on = function(n) return Cmd.jump(n or 150) end, off = function() return Cmd.jumpoff() end},
+    {kw = K("جاذبيه","gravity"), on = function(n) return Cmd.gravity(n or 50) end, off = function() return Cmd.gravity(196.2) end},
+    {kw = K("ادوات","btools"), on = function() return Cmd.btools() end},
+    {kw = K("سيرفر جديد","serverhop"), on = function() return Cmd.serverhop() end},
+    {kw = K("ريجوين","rejoin"), on = function() return Cmd.rejoin() end},
+    {kw = K("اقعد","sit"), on = function() return Cmd.sit() end},
+    {kw = K("احفظ","savepos"), on = function() return Cmd.savepos() end},
+    {kw = K("ارجع","loadpos"), on = function() return Cmd.loadpos() end},
+    {kw = K("احداثيات","coords"), on = function() return Cmd.pos() end},
+    {kw = K("اللاعبين","players"), on = function() return Cmd.players() end},
+    {kw = K("اوامر","help"), on = function() return Cmd.help() end},
+    {kw = K("ريسيت","reset"), on = function() return Cmd.reset() end},
 }
 
 local NameCmds = {
-    {
-        kw = K("اقتل", "kill"),
-        run = function(n) return Cmd.kill(n) end
-    },
-    {
-        kw = K("هات", "جيب", "bring"),
-        run = function(n) return Cmd.bring(n) end
-    },
-    {
-        kw = K("روح ل", "انتقل ل", "tp", "goto", "teleport"),
-        run = function(n) return Cmd.tp(n) end
-    },
-    {
-        kw = K("شوف", "view", "spectate"),
-        run = function(n) return Cmd.view(n) end
-    },
+    {kw = K("اقتل","kill"), run = function(n) return Cmd.kill(n) end},
+    {kw = K("هات","جيب","bring"), run = function(n) return Cmd.bring(n) end},
+    {kw = K("روح ل","tp","goto"), run = function(n) return Cmd.tp(n) end},
+    {kw = K("شوف","view"), run = function(n) return Cmd.view(n) end},
 }
-
-local VIEWWORDS = K("view", "spectate", "مشاهده", "unview")
+local VIEWWORDS = K("view","spectate","unview")
 
 local function ParseDirectCommands(txt)
     if State.Mode ~= 1 and State.Mode ~= 4 then return nil end
     local t = norm(txt)
     local toks = tokenize(t)
     local _, nWords = t:gsub("%S+", "")
-    
     if #toks == 0 or nWords > 6 then return nil end
     if isQuestion(txt, t, toks) then return nil end
     if anyWord(t, toks, SCRIPTW) then return nil end
-    
     local num = tonumber(t:match("%d+%.?%d*"))
     local isOff = anyWord(t, toks, OFFWORDS)
-
-    if isOff and anyWord(t, toks, VIEWWORDS) then 
-        return Cmd.view("") 
-    end
-
+    if isOff and anyWord(t, toks, VIEWWORDS) then return Cmd.view("") end
     for _, nc in ipairs(NameCmds) do
         for _, kw in ipairs(nc.kw) do
             local rest = afterKeyword(t, kw)
@@ -856,21 +722,18 @@ local function ParseDirectCommands(txt)
             end
         end
     end
-
     for _, f in ipairs(Features) do
         if anyWord(t, toks, f.kw) then
-            if isOff and f.off then
-                return f.off(num, t)
-            end
+            if isOff and f.off then return f.off(num, t) end
             return f.on(num, t)
         end
     end
     return nil
 end
+--[[ RedxAI v43.0 | Part 2B | Smart AI Engine ]]
 
--- ═══ إعدادات الذكاء الاصطناعي ═══
-local LangNames = {ar = "Arabic", en = "English", fr = "French", es = "Spanish", de = "German", tr = "Turkish"}
-local History = {{}, {}, {}, {}}
+local LangNames = {ar="Arabic",en="English",fr="French",es="Spanish",de="German",tr="Turkish"}
+local History = {{},{},{},{}}
 local MAX_HIST = 14
 
 local function langHint(text)
@@ -882,46 +745,42 @@ end
 
 local function looksLikeCode(s)
     if #s < 5 then return false end
-    for _, p in ipairs({"local ", "game", "function", "workspace", "Instance.new", "task.wait", "task.spawn", "GetService"}) do
+    for _, p in ipairs({"local ","game","function","workspace","Instance.new","task.wait","task.spawn"}) do
         if s:find(p, 1, true) then return true end
     end
     return false
 end
 
--- 🔥 قواعد خبراء Roblox (Expert Rules)
 local RULES = {
-    "1. Luau ONLY. Use task.wait, task.spawn, task.delay. NEVER use wait, spawn, delay.",
+    "1. Luau ONLY. Use task.wait, task.spawn, task.delay.",
     "2. ALWAYS include a re-run guard. Store a cleanup function in getgenv() under a unique key and call it at the top.",
     "3. Track EVERY connection (RunService, UserInputService, etc.) and GUI element. The cleanup function MUST disconnect everything and destroy the GUI.",
     "4. Every loop MUST have a stop flag (e.g., running = false) and a pcall around its body. NEVER use a bare while true do.",
     "5. Re-fetch Character, Humanoid, and HumanoidRootPart when needed. Handle CharacterAdded to re-apply features.",
-    "6. Check for executor functions (firetouchinterest, fireproximityprompt, getconnections, etc.) using pcall/typeof before using them.",
-    "7. Cache lookups. Do not call GetDescendants() every frame. Use event listeners or update intervals.",
-    "8. GUI MUST be mobile-friendly (buttons >= 44px, draggable via InputBegan/InputChanged, UICorner). Parent to gethui() if available, else PlayerGui.",
-    "9. NEVER invent remote arguments. If a remote shape is unknown, use ProximityPrompts, ClickDetectors, or create a CONFIG table at the top.",
-    "10. Write highly professional, structured, and bug-free code. Think step-by-step before generating."
+    "6. Check for executor functions (firetouchinterest, fireproximityprompt, getconnections) using pcall/typeof.",
+    "7. Cache lookups. Do not call GetDescendants() every frame.",
+    "8. GUI MUST be mobile-friendly (buttons >= 44px, draggable via InputBegan/InputChanged, UICorner). Parent to gethui() if available.",
+    "9. NEVER invent remote arguments. Use ProximityPrompts, ClickDetectors, or a CONFIG table.",
+    "10. Write highly professional, structured, and bug-free code."
 }
 
 local TAGLIST = "[[fly:SPEED]] [[fly:off]] [[speed:NUM]] [[speed:off]] [[jump:NUM]] [[jump:inf]] [[jump:off]] [[noclip:on]] [[noclip:off]] [[god:on]] [[god:off]] [[invisible:on]] [[invisible:off]] [[esp:on]] [[esp:off]] [[spin:on]] [[spin:off]] [[clicktp:on]] [[clicktp:off]] [[antiafk:on]] [[antiafk:off]] [[fullbright:on]] [[fullbright:off]] [[gravity:NUM]] [[day]] [[night]] [[sit]] [[reset]] [[tp:NAME]] [[bring:NAME]] [[kill:NAME]] [[fling:NAME]] [[freeze:NAME]] [[view:NAME]] [[view:off]] [[savepos]] [[loadpos]] [[pos]] [[players]] [[btools]] [[serverhop]] [[rejoin]] [[chat:MSG]]"
 
--- ═══ Map Scanner ═══
 local Maps = {
     _name = nil, _desc = nil, _scan = nil, _scanT = 0, _stats = nil, _placeId = nil,
-    remoteKW = {"buy", "purchase", "equip", "claim", "reward", "weapon", "give", "grant", "drop", "pickup", "spawn", "summon", "open", "hatch", "plant", "harvest", "sell", "trade", "collect", "stock", "shop"},
-    weaponKW = {"sword", "gun", "blade", "weapon", "knife", "bow", "staff", "wand", "pickaxe", "axe", "shield", "pistol", "rifle", "shotgun", "sniper", "bomb", "glove", "slap", "lucky"},
-    zoneKW = {"safe", "spawn", "lobby", "shelter", "checkpoint", "plot", "home", "base", "tower", "portal", "exit", "entrance", "hub"},
-    farmKW = {"plant", "crop", "tree", "seed", "fruit", "harvest", "grow", "berry", "flower", "vegetable", "coin", "gem", "loot", "chest", "egg", "pet", "animal"},
-    shopKW = {"shop", "store", "market", "stock", "purchase", "seed", "merchant"},
-    currencyKW = {"coin", "cash", "gem", "sheckle", "money", "balance", "token", "star", "buck", "credit", "diamond", "gold", "silver", "egg", "candy"},
-    buyKW = {"buy", "purchase", "claim"},
+    remoteKW = {"buy","purchase","equip","claim","reward","weapon","give","grant","drop","pickup","spawn","summon","open","hatch","plant","harvest","sell","trade","collect","stock","shop"},
+    weaponKW = {"sword","gun","blade","weapon","knife","bow","staff","wand","pickaxe","axe","shield","pistol","rifle","shotgun","sniper","bomb","glove","slap","lucky"},
+    zoneKW = {"safe","spawn","lobby","shelter","checkpoint","plot","home","base","tower","portal","exit","entrance","hub"},
+    farmKW = {"plant","crop","tree","seed","fruit","harvest","grow","berry","flower","vegetable","coin","gem","loot","chest","egg","pet","animal"},
+    shopKW = {"shop","store","market","stock","purchase","seed","merchant"},
+    currencyKW = {"coin","cash","gem","sheckle","money","balance","token","star","buck","credit","diamond","gold","silver","egg","candy"},
+    buyKW = {"buy","purchase","claim"},
 }
 
 function Maps.hasKW(s, list)
     if not s or not list then return false end
     local low = tostring(s):lower()
-    for _, kw in ipairs(list) do
-        if low:find(kw, 1, true) then return true end
-    end
+    for _, kw in ipairs(list) do if low:find(kw, 1, true) then return true end end
     return false
 end
 
@@ -954,33 +813,100 @@ function Maps.GameName()
     return n
 end
 
+function Maps.Scan()
+    if Maps._scan and os.clock() - Maps._scanT < 60 then return Maps._scan, Maps._stats, Maps.GameName() end
+    local out = {}
+    local function add(s) out[#out + 1] = s end
+    local stats = {tools=0,remotes=0,prompts=0,clicks=0,touch=0,npcs=0,zones=0,shops=0,farmables=0,roles=0}
+    local gname = Maps.GameName()
+    add("Game: " .. gname .. " | PlaceId: " .. tostring(game.PlaceId) .. " | Players: " .. #Players:GetPlayers())
+    local desc = tostring(Maps._desc or ""):gsub("%s+", " ")
+    if desc ~= "" and desc ~= " " then add("Description: " .. desc:sub(1, 250)) end
+
+    local have = {}
+    for _, fn in ipairs({"fireproximityprompt","firetouchinterest","fireclickdetector","firesignal","getconnections","setclipboard","request","gethui","queue_on_teleport","Drawing"}) do
+        local ok, v = pcall(function() return env[fn] ~= nil or loadstring("return " .. fn)() ~= nil end)
+        if ok and v then have[#have + 1] = fn end
+    end
+    add("Executor functions: " .. table.concat(have, ", "))
+
+    local myPos
+    pcall(function() local r = getRoot() if r then myPos = r.Position end end)
+    if myPos then add("Player position: (" .. Maps.int(myPos.X) .. "," .. Maps.int(myPos.Y) .. "," .. Maps.int(myPos.Z) .. ")") end
+
+    pcall(function()
+        local ls = LP:FindFirstChild("leaderstats")
+        if ls then
+            local t = {}
+            for _, v in ipairs(ls:GetChildren()) do
+                local okv, val = pcall(function() return v.Value end)
+                t[#t + 1] = v.Name .. "=" .. (okv and tostring(val) or "?")
+            end
+            add("Leaderstats: " .. table.concat(t, ", "))
+        end
+    end)
+
+    local tools, toolSeen, remotes = {}, {}, {}
+    local prompts, promptSeen = {}, {}
+    local scanned = 0
+
+    local function scanRoot(root, label)
+        local okL, list = pcall(function() return root:GetDescendants() end)
+        if not okL then return end
+        for _, v in ipairs(list) do
+            scanned = scanned + 1
+            if scanned % 2500 == 0 then task.wait() end
+            local cls = v.ClassName
+            if cls == "Tool" then
+                stats.tools = stats.tools + 1
+                if not toolSeen[v.Name] and #tools < 40 then toolSeen[v.Name] = true tools[#tools + 1] = v.Name .. "@" .. label end
+            elseif cls == "RemoteEvent" or cls == "RemoteFunction" then
+                stats.remotes = stats.remotes + 1
+                if #remotes < 400 then
+                    local path = v:GetFullName():gsub("^[%w_]+%.", "")
+                    remotes[#remotes + 1] = {kind = (cls == "RemoteEvent") and "E:" or "F:", path = path, hit = Maps.hasKW(v.Name, Maps.remoteKW) or Maps.hasKW(path, Maps.remoteKW)}
+                end
+            elseif cls == "ProximityPrompt" then
+                stats.prompts = stats.prompts + 1
+                local pname = v.Parent and v.Parent.Name or "?"
+                local key = pname .. "|" .. v.ActionText
+                if not promptSeen[key] and #prompts < 25 then promptSeen[key] = true prompts[#prompts + 1] = pname .. "[" .. v.ActionText .. "]" end
+            end
+        end
+    end
+
+    scanRoot(workspace, "Workspace")
+    scanRoot(game:GetService("ReplicatedStorage"), "ReplicatedStorage")
+    scanRoot(game:GetService("StarterPack"), "StarterPack")
+    local bp = LP:FindFirstChildOfClass("Backpack")
+    if bp then scanRoot(bp, "Backpack") end
+
+    if #tools > 0 then add("Tools (" .. stats.tools .. "): " .. table.concat(tools, ", ")) end
+    if #remotes > 0 then
+        local rt = {}
+        for i = 1, math.min(#remotes, 40) do rt[i] = remotes[i].kind .. remotes[i].path end
+        add("Remotes (" .. stats.remotes .. "): " .. table.concat(rt, ", "))
+    end
+
+    local s = table.concat(out, "\n")
+    if #s > 7000 then s = s:sub(1, 7000) .. "..." end
+    Maps._scan, Maps._stats, Maps._scanT = s, stats, os.clock()
+    return s, stats, gname
+end
+
 function Maps.System(L)
-    return "You are RedxAI MapSmith, the absolute best Roblox map-scripting AI for Delta Executor.\n"
-        .. "YOUR GOAL: Analyze the provided MAP SCAN and write a highly professional, complete script tailored to the exact game.\n"
-        .. "RULES:\n" .. table.concat(RULES, "\n") 
-        .. "\nOUTPUT: ONE complete script as RAW Lua code. No fences. No text."
+    return "You are RedxAI MapSmith.\nYOUR GOAL: Analyze MAP SCAN and write a highly professional, complete script.\nRULES:\n" .. table.concat(RULES, "\n") .. "\nOUTPUT: ONE complete script as RAW Lua code."
 end
 
 local function BuildSystem(mode, text)
     local L = langHint(text)
     if mode == 4 then return Maps.System(L) end
-    
     if mode == 3 then
-        return "You are RedxAI Scripter, an elite Roblox Luau developer writing for Delta Executor.\n"
-            .. "YOUR GOAL: Write a flawless, highly optimized, complete Roblox Lua script for the user's request.\n"
-            .. "RULES:\n" .. table.concat(RULES, "\n") 
-            .. "\nOUTPUT FORMAT:\n"
-            .. "- Output ONLY raw Lua code. NO markdown fences. NO introductory text.\n"
-            .. "- Start directly with 'local' or '--'.\n"
-            .. "- Write comments in " .. L .. "."
+        return "You are RedxAI Scripter, an elite Roblox Luau developer.\nYOUR GOAL: Write a flawless, complete Roblox Lua script.\nRULES:\n" .. table.concat(RULES, "\n") .. "\nOUTPUT FORMAT: Output ONLY raw Lua code. NO fences. Comments in " .. L .. "."
     elseif mode == 2 then
-        return "You are RedxAI CodeMaster, an expert Roblox Lua developer.\n"
-            .. "Explain clearly. Code inside lua blocks.\nReply in " .. L .. "."
+        return "You are RedxAI CodeMaster.\nExplain clearly. Code inside lua blocks.\nReply in " .. L .. "."
     end
-    
-    return "You are RedxAI, a brilliant AI assistant inside a Roblox executor (Delta).\n"
-        .. "If script requested, write it in lua block. Reply in " .. L .. ".\n"
-        .. "GAME ACTIONS: write a short reply + matching tags at VERY END. Tags: " .. TAGLIST
+    return "You are RedxAI.\nIf script requested, write it in lua block. Reply in " .. L .. ".\nGAME ACTIONS: write a short reply + matching tags at VERY END. Tags: " .. TAGLIST
 end
 
 local function pushHist(mode, q, a)
@@ -994,13 +920,10 @@ end
 local function AskAI(text, mode, force)
     local req = getReq()
     if not req then return nil, "no_http" end
-    
     local msgs = {{role = "system", content = BuildSystem(mode, text)}}
     for _, m in ipairs(History[mode] or {}) do msgs[#msgs + 1] = m end
-    
     local L = langHint(text)
     local u
-    
     if mode == 4 then
         local scan = Maps.Scan()
         u = "MAP SCAN (live):\n" .. scan .. "\n\nUSER REQUEST: " .. text .. "\n\nOutput ONLY raw Lua."
@@ -1011,18 +934,11 @@ local function AskAI(text, mode, force)
     else
         u = text .. "\n\n(Reply language: " .. L .. ")"
     end
-    
     msgs[#msgs + 1] = {role = "user", content = u}
-    
     for _, model in ipairs({"openai", "mistral"}) do
         local ok, body = pcall(function() return HS:JSONEncode({model = model, messages = msgs}) end)
         if ok then
-            local ok1, res = pcall(req, {
-                Url = "https://text.pollinations.ai/openai", 
-                Method = "POST", 
-                Headers = {["Content-Type"] = "application/json"}, 
-                Body = body
-            })
+            local ok1, res = pcall(req, {Url = "https://text.pollinations.ai/openai", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = body})
             if ok1 and res and res.Body then
                 local ok2, data = pcall(function() return HS:JSONDecode(res.Body) end)
                 if ok2 and type(data) == "table" and data.choices and data.choices[1] and data.choices[1].message then
@@ -1072,16 +988,14 @@ local function ApplyTags(txt)
         return ""
     end)
     clean = trim(clean)
-    if #res > 0 then 
-        clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n") 
-    end
+    if #res > 0 then clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n") end
     return clean
 end
---[[ RedxAI v42.0 | Part 3 of 3 | UI & Run ]]
+--[[ RedxAI v43.0 | Part 3A | UI Setup & Languages ]]
 
 local PlayerGui = LP:WaitForChild("PlayerGui")
 local gui = Instance.new("ScreenGui")
-gui.Name = "RedxAI_v42"
+gui.Name = "RedxAI_v43"
 gui.ResetOnSpawn = false
 gui.DisplayOrder = 999
 gui.Parent = PlayerGui
@@ -1100,28 +1014,21 @@ local function corner(o, r)
     return c
 end
 
--- ═══ Code Only Logic ═══
-local function extractCodeOnly(text)
-    if not text or #text == 0 then return "" end
-    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
-    if code and #code > 0 then return trim(code) end
-    return trim(text)
-end
-
-local function hasCode(text)
-    if not text then return false end
-    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
-    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
-        if text:find(p, 1, true) then return true end
-    end
-    return false
-end
-
 local ModeInfo = {
     {icon = "💬", name = "Chat", color = Color3.fromRGB(80, 10, 15), ph = "Type command...", chatBg = Color3.fromRGB(10, 4, 5), bubble = Color3.fromRGB(30, 10, 15)},
     {icon = "🧠", name = "Code", color = Color3.fromRGB(200, 150, 0), ph = "Ask about script...", chatBg = Color3.fromRGB(20, 15, 5), bubble = Color3.fromRGB(30, 20, 5)},
     {icon = "📜", name = "Script", color = Color3.fromRGB(50, 200, 100), ph = "Ask for script...", chatBg = Color3.fromRGB(5, 15, 10), bubble = Color3.fromRGB(5, 20, 10)},
     {icon = "🗺️", name = "Map", color = Color3.fromRGB(30, 80, 180), ph = "Map or request...", chatBg = Color3.fromRGB(5, 10, 20), bubble = Color3.fromRGB(10, 20, 40)},
+}
+
+local UIStrings = {
+    auto = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
+    ar = { modes = {"💬 محادثة وأوامر", "🧠 مساعد برمجة", "📜 كاتب سكريبت", "🗺️ سكريبت ماب"}, ph = {"اكتب أمرك هنا...", "اسألني عن أي كود...", "اطلب سكريبت...", "اكتب اسم الماب أو طلبك..."} },
+    en = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
+    fr = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Tapez...", "Posez une question...", "Demandez un script...", "Nom de la map..."} },
+    es = { modes = {"💬 Chat", "🧠 Código", "📜 Script", "🗺️ Mapas"}, ph = {"Escribe...", "Pregunta...", "Pide un script...", "Nombre del mapa..."} },
+    de = { modes = {"💬 Chat", "🧠 Code", "📜 Skript", "🗺️ Map Scripts"}, ph = {"Befehl...", "Frage...", "Skript anfordern...", "Map Name..."} },
+    tr = { modes = {"💬 Sohbet", "🧠 Kod", "📜 Script", "🗺️ Harita"}, ph = {"Komut yaz...", "Soru sor...", "Script iste...", "Harita adı..."} }
 }
 
 local smallSize, largeSize = UDim2.fromOffset(320, 220), UDim2.fromOffset(320, 420)
@@ -1174,7 +1081,7 @@ new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.Layout
 local input = new("TextBox", {
     Size = UDim2.new(1, -60, 0, 38), Position = UDim2.new(0, 8, 1, -46),
     BackgroundColor3 = Color3.fromRGB(25, 8, 12), TextColor3 = Color3.new(1, 1, 1),
-    PlaceholderText = "Type here...", PlaceholderColor3 = Color3.fromRGB(140, 100, 110),
+    PlaceholderText = ModeInfo[1].ph, PlaceholderColor3 = Color3.fromRGB(140, 100, 110),
     Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, ZIndex = 2
 }, main)
 corner(input, 8)
@@ -1187,21 +1094,90 @@ local send = new("TextButton", {
 }, main)
 corner(send, 8)
 
--- ═══ Reader Overlay (Code Only) ═══
+-- ═══ Mini App ═══
+local miniApp = new("TextButton", {
+    Name = "Mini", Size = UDim2.fromOffset(46, 46), Position = UDim2.new(0.5, -23, 0.5, -23),
+    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "R", TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBlack, TextSize = 22, Visible = false, Active = true, ZIndex = 10
+}, gui)
+corner(miniApp, 12)
+new("UIStroke", {Color = Color3.fromRGB(255, 50, 60), Thickness = 1.5}, miniApp)
+
+-- ═══ Langs Frame ═══
+local langFrame = new("ScrollingFrame", {
+    Size = UDim2.new(0, 100, 0, 150), Position = UDim2.new(1, -110, 0, 40),
+    BackgroundColor3 = Color3.fromRGB(25, 8, 12), Visible = false, ZIndex = 10,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0)
+}, main) 
+corner(langFrame, 8)
+new("UIListLayout", {Padding = UDim.new(0, 2)}, langFrame)
+new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
+
+local function applyLang()
+    local L = UIStrings[State.Lang] or UIStrings.ar
+    for i = 1, 4 do 
+        ModeInfo[i].name = L.modes[i] 
+        ModeInfo[i].ph = L.ph[i] 
+    end
+    local m = ModeInfo[State.Mode] 
+    codeBtn.Text = m.icon 
+    input.PlaceholderText = m.ph 
+    chat.BackgroundColor3 = m.chatBg 
+end
+
+local langs = {{c="auto", n="🌐 Auto"}, {c="ar", n="🇪🇬 العربية"}, {c="en", n="🇬🇧 English"}, {c="fr", n="🇫🇷 Français"}, {c="es", n="🇪🇸 Español"}, {c="de", n="🇩🇪 Deutsch"}, {c="tr", n="🇹🇷 Türkçe"}}
+for i, l in ipairs(langs) do
+    local b = new("TextButton", {
+        Size = UDim2.new(1, 0, 0, 24), BackgroundColor3 = Color3.fromRGB(40, 10, 15),
+        Text = l.n, TextColor3 = Color3.new(1, 1, 1), ZIndex = 11, LayoutOrder = i
+    }, langFrame)
+    corner(b, 4)
+    b.MouseButton1Click:Connect(function() 
+        State.Lang = l.c 
+        langFrame.Visible = false 
+        applyLang()
+    end)
+end
+
+applyLang()
+
+langBtn.MouseButton1Click:Connect(function() langFrame.Visible = not langFrame.Visible end)
+
+codeBtn.MouseButton1Click:Connect(function() 
+    State.Mode = State.Mode % 4 + 1 
+    applyLang()
+end)
+
+maxBtn.MouseButton1Click:Connect(function() 
+    isMaximized = not isMaximized 
+    main.Size = isMaximized and largeSize or smallSize 
+    maxBtn.Text = isMaximized and "➖" or "➕" 
+end)
+
+minBtn.MouseButton1Click:Connect(function() 
+    main.Visible = false 
+    miniApp.Position = main.Position
+    miniApp.Visible = true 
+end)
+--[[ RedxAI v43.0 | Part 3B | Reader, Panel & Run ]]
+
+-- ═══ Reader Overlay (Zoom) ═══
 local rOver = new("TextButton", {
     Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0),
-    BackgroundTransparency = 0.6, Visible = false, ZIndex = 50, Text = ""
+    BackgroundTransparency = 0.6, Visible = false, ZIndex = 50, Text = "", AutoButtonColor = false
 }, gui)
 
 local rFrame = new("Frame", {
     Size = UDim2.new(0.9, 0, 0.8, 0), Position = UDim2.new(0.05, 0, 0.1, 0),
-    BackgroundColor3 = Color3.fromRGB(20, 5, 8), Visible = false, ZIndex = 51
+    BackgroundColor3 = Color3.fromRGB(20, 5, 8), Visible = false, ZIndex = 51, Active = true
 }, gui)
 corner(rFrame, 10)
+new("UIStroke", {Color = Color3.fromRGB(200, 20, 30), Thickness = 2}, rFrame)
 
 new("TextLabel", {
     Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25),
-    Text = "📄 Code Reader", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, ZIndex = 52
+    Text = "📄 قارئ النصوص - اضغط للنسخ", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, 
+    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 52
 }, rFrame)
 
 local rText = new("TextBox", {
@@ -1217,6 +1193,12 @@ local rClose = new("TextButton", {
 }, rFrame)
 corner(rClose, 4)
 
+local rCopy = new("TextButton", {
+    Size = UDim2.fromOffset(70, 25), Position = UDim2.new(1, -115, 0, 5),
+    BackgroundColor3 = Color3.fromRGB(50, 200, 100), Text = "📋 نسخ", TextColor3 = Color3.new(1, 1, 1), ZIndex = 53
+}, rFrame)
+corner(rCopy, 4)
+
 local function openReader(txt) 
     rText.Text = txt 
     rOver.Visible = true 
@@ -1230,28 +1212,87 @@ end
 
 rClose.MouseButton1Click:Connect(closeReader)
 rOver.MouseButton1Click:Connect(closeReader)
+rCopy.MouseButton1Click:Connect(function()
+    local clip = setclipboard or toclipboard or set_clipboard
+    local ok = clip and pcall(clip, rText.Text)
+    rCopy.Text = ok and "✅ تم" or "⚠ مش مدعوم"
+    task.wait(1.3)
+    rCopy.Text = "📋 نسخ"
+end)
 
--- ═══ Dynamic Control Panel (Left) ═══
+-- ═══ Code Only Logic ═══
+local function extractCodeOnly(text)
+    if not text or #text == 0 then return "" end
+    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
+    if code and #code > 0 then return trim(code) end
+    return trim(text)
+end
+
+local function hasCode(text)
+    if not text then return false end
+    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
+    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
+        if text:find(p, 1, true) then return true end
+    end
+    return false
+end
+
+-- ═══ Dynamic Control Panel ═══
 local panel = new("Frame", {
-    Size = UDim2.new(0, 200, 0, 240), Position = UDim2.new(0, 15, 0.5, -120),
+    Size = UDim2.new(0, 180, 0, 180), Position = UDim2.new(0, 15, 0.5, -90),
     BackgroundColor3 = Color3.fromRGB(20, 20, 20), Visible = false, ZIndex = 20
 }, gui)
 corner(panel, 8)
 new("UIStroke", {Color = Color3.fromRGB(150, 20, 30), Thickness = 2}, panel)
 
-new("TextLabel", {
-    Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(80, 10, 15),
-    Text = "🩸 " .. LP.Name, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 21
+local pBar = new("Frame", {
+    Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(80, 10, 15), ZIndex = 21
 }, panel)
+corner(pBar, 8)
+new("TextLabel", {
+    Size = UDim2.new(1, -30, 1, 0), Position = UDim2.fromOffset(10, 0), BackgroundTransparency = 1,
+    Text = "🩸 " .. LP.Name, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, 
+    TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 22
+}, pBar)
+
+local pClose = new("TextButton", {
+    Size = UDim2.fromOffset(26, 24), Position = UDim2.new(1, -30, 0, 5.5),
+    BackgroundColor3 = Color3.fromRGB(50, 10, 15), Text = "X", TextColor3 = Color3.new(1, 1, 1), 
+    Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 23
+}, pBar)
+corner(pClose, 6)
+pClose.MouseButton1Click:Connect(function() 
+    State.ShowPanel = false 
+    UpdatePanel() 
+end)
+
+-- Panel Draggable
+local pDrag, pStart, pStartPos = false, nil, nil
+pBar.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        pDrag = true
+        pStart = i.Position
+        pStartPos = panel.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if pDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - pStart
+        panel.Position = UDim2.new(pStartPos.X.Scale, pStartPos.X.Offset + d.X, pStartPos.Y.Scale, pStartPos.Y.Offset + d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then pDrag = false end
+end)
 
 UpdatePanel = function()
     panel.Visible = State.ShowPanel
     for _, c in ipairs(panel:GetChildren()) do 
         if c.Name == "DynRow" then c:Destroy() end 
     end
-    
+
     if not State.ShowPanel then return end
-    
+
     if State.ActivePanel == "fly" then
         local row = new("Frame", {Name="DynRow", Size = UDim2.new(1, -10, 0, 40), Position = UDim2.new(0, 5, 0, 45), BackgroundTransparency = 1, ZIndex = 22}, panel)
         new("TextLabel", {Size = UDim2.new(0.5, 0, 1, 0), BackgroundTransparency = 1, Text = "Fly: " .. State.FlySpeed, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 23}, row)
@@ -1293,7 +1334,7 @@ local function addMsg(txt, isUser)
         BackgroundTransparency = 1, LayoutOrder = #chat:GetChildren()
     }, chat)
     new("UIListLayout", {Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder}, container)
-    
+
     local bubble = new("TextButton", {
         Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1,
         BackgroundColor3 = isUser and Color3.fromRGB(90, 15, 25) or ModeInfo[State.Mode].bubble,
@@ -1304,7 +1345,16 @@ local function addMsg(txt, isUser)
     corner(bubble, 6)
     new("UIPadding", {PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7)}, bubble)
     setBubbleText(bubble, txt)
-    
+
+    local currentRawText = txt
+
+    -- زووم عند الضغط على الرسالة
+    bubble.MouseButton1Click:Connect(function()
+        if #currentRawText > 0 then 
+            openReader(currentRawText) 
+        end
+    end)
+
     -- زرار كود بس للردود اللي فيها كود
     if not isUser and hasCode(txt) then
         local row = new("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 2}, container)
@@ -1315,10 +1365,10 @@ local function addMsg(txt, isUser)
         }, row)
         corner(cb, 6)
         cb.MouseButton1Click:Connect(function()
-            openReader(extractCodeOnly(txt))
+            openReader(extractCodeOnly(currentRawText))
         end)
     end
-    
+
     -- زرار نسخ
     local copyRow = new("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 3}, container)
     local copyBtn = new("TextButton", {
@@ -1328,14 +1378,14 @@ local function addMsg(txt, isUser)
     corner(copyBtn, 6)
     copyBtn.MouseButton1Click:Connect(function()
         local clip = setclipboard or toclipboard or set_clipboard
-        local ok = clip and pcall(clip, txt)
+        local ok = clip and pcall(clip, currentRawText)
         copyBtn.Text = ok and "✅" or "⚠"
         task.wait(1.3)
         copyBtn.Text = "📋"
     end)
-    
+
     scrollDown()
-    return bubble, container
+    return bubble, container, function(newText) currentRawText = newText end
 end
 
 local function stripFences(s)
@@ -1358,20 +1408,20 @@ local function Submit()
     if State.Busy then return end
     local txt = trim(input.Text) 
     if txt == "" then return end
-    
+
     input.Text = "" 
     addMsg(txt, true) 
     State.Busy = true
-    
+
     task.spawn(function()
-        local thinking, activeBubble = false, nil
+        local thinking, activeBubble, setRaw = false, nil, nil
         local ok, err = pcall(function()
             local nt = norm(txt)
             if nt == "/clear" or nt == "clear" then 
                 History = {{},{},{},{}} 
                 return 
             end
-            
+
             local mode = State.Mode
             if mode == 1 or mode == 4 then 
                 local direct = ParseDirectCommands(txt) 
@@ -1380,13 +1430,14 @@ local function Submit()
                     return 
                 end 
             end
-            
+
             if mode == 4 then Maps._scan = nil end
-            
-            local bubble, container = addMsg("Thinking...", false)
+
+            local bubble, container, setter = addMsg("Thinking...", false)
             activeBubble = bubble
+            setRaw = setter
             thinking = true
-            
+
             task.spawn(function() 
                 local n = 0 
                 while thinking do 
@@ -1397,15 +1448,16 @@ local function Submit()
                     task.wait(0.4) 
                 end 
             end)
-            
+
             local ans, why = AskAI(txt, mode, false)
             if ans and (mode == 3 or mode == 4) and not looksLikeCode(stripFences(ans)) then 
                 ans = AskAI(txt, mode, true) or ans 
             end
             thinking = false
-            
+
             if not ans then 
                 setBubbleText(bubble, "Server busy. Try again.") 
+                if setRaw then setRaw("Server busy. Try again.") end
             else
                 local clean = ans
                 if mode == 3 or mode == 4 then 
@@ -1417,14 +1469,16 @@ local function Submit()
                 if clean == "" then clean = "Done" end
                 pushHist(mode, txt, ans)
                 setBubbleText(bubble, clean)
+                if setRaw then setRaw(clean) end
             end
             scrollDown()
         end)
-        
+
         thinking = false
         State.Busy = false
         if not ok and activeBubble and activeBubble.Parent then 
             setBubbleText(activeBubble, "Error: " .. tostring(err)) 
+            if setRaw then setRaw("Error: " .. tostring(err)) end
         end
     end)
 end
@@ -1432,7 +1486,7 @@ end
 send.MouseButton1Click:Connect(Submit)
 input.FocusLost:Connect(function(enter) if enter then Submit() end end)
 
--- ═══ Drag Logic (Fixed) ═══
+-- ═══ Drag Logic (Main Window) ═══
 local dragging, dragStart, startPos = false, nil, nil
 
 bar.InputBegan:Connect(function(i)
@@ -1456,44 +1510,40 @@ UIS.InputEnded:Connect(function(i)
     end
 end)
 
--- ═══ Langs ═══
-local langFrame = new("ScrollingFrame", {
-    Size = UDim2.new(0, 100, 0, 100), Position = UDim2.new(1, -110, 0, 40),
-    BackgroundColor3 = Color3.fromRGB(25, 8, 12), Visible = false, ZIndex = 10
-}, main) 
-corner(langFrame, 8)
+-- ═══ Drag Logic (Mini App) ═══
+local mDrag, mStart, mStartPos, mMoved = false, nil, nil, false
 
-local langs = {"Auto", "Arabic", "English", "French", "Spanish", "German", "Turkish"}
-for i, l in ipairs(langs) do
-    local b = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 20), BackgroundColor3 = Color3.fromRGB(40, 10, 15),
-        Text = l, TextColor3 = Color3.new(1, 1, 1), ZIndex = 11, LayoutOrder = i
-    }, langFrame)
-    b.MouseButton1Click:Connect(function() 
-        State.Lang = string.lower(l):sub(1, 2) 
-        langFrame.Visible = false 
-    end)
-end
-
--- ═══ Buttons ═══
-langBtn.MouseButton1Click:Connect(function() langFrame.Visible = not langFrame.Visible end)
-
-codeBtn.MouseButton1Click:Connect(function() 
-    State.Mode = State.Mode % 4 + 1 
-    local m = ModeInfo[State.Mode] 
-    codeBtn.Text = m.icon 
-    input.PlaceholderText = m.ph 
-    chat.BackgroundColor3 = m.chatBg 
+miniApp.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        mDrag = true
+        mMoved = false
+        mStart = i.Position
+        mStartPos = miniApp.Position
+    end
 end)
 
-maxBtn.MouseButton1Click:Connect(function() 
-    isMaximized = not isMaximized 
-    main.Size = isMaximized and largeSize or smallSize 
-    maxBtn.Text = isMaximized and "➖" or "➕" 
+UIS.InputChanged:Connect(function(i)
+    if mDrag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - mStart
+        if d.Magnitude > 4 then mMoved = true end
+        miniApp.Position = UDim2.new(mStartPos.X.Scale, mStartPos.X.Offset + d.X, mStartPos.Y.Scale, mStartPos.Y.Offset + d.Y)
+    end
 end)
 
-minBtn.MouseButton1Click:Connect(function() main.Visible = false end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then 
+        mDrag = false 
+    end
+end)
 
+miniApp.MouseButton1Click:Connect(function()
+    if mMoved then return end
+    main.Position = miniApp.Position
+    main.Visible = true
+    miniApp.Visible = false
+end)
+
+-- ═══ Close & Unload ═══
 closeBtn.MouseButton1Click:Connect(function() 
     pcall(Cmd.fly, false) pcall(Cmd.noclip, false) pcall(Cmd.god, false) 
     pcall(Cmd.esp, false) pcall(Cmd.invisible, false) pcall(Cmd.spin, false) 
@@ -1512,4 +1562,4 @@ env.RedxAI_Unload = function()
     if gui then gui:Destroy() end 
 end
 
-addMsg("Welcome to RedxAI v42.0! Type 'help' for commands.", false)
+addMsg("Welcome to RedxAI v43.0! Type 'help' for commands.", false)
