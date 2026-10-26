@@ -1,4 +1,4 @@
---[[ RedxAI v30.0 | Part 1 of 3 | Core & Commands ]]
+--[[ RedxAI v33.0 | Part 1 of 3 | Core & Commands (Full) ]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -372,7 +372,7 @@ setConn("char", LP.CharacterAdded:Connect(function()
     if State.Invisible then Cmd.invisible(true) end
     if State.Noclip then Cmd.noclip(true) end
 end))
---[[ RedxAI v30.0 | Part 2 of 3 | Parser + Maps + AI ]]
+--[[ RedxAI v33.0 | Part 2 of 4 | Parser + AI + Maps ]]
 
 local CPMAP = {
     [0x0623] = 0x0627, [0x0625] = 0x0627, [0x0622] = 0x0627, [0x0671] = 0x0627,
@@ -577,29 +577,10 @@ function Maps.Scan()
     add("Game: " .. gname .. " | PlaceId: " .. tostring(game.PlaceId) .. " | Players: " .. #Players:GetPlayers())
     local desc = tostring(Maps._desc or ""):gsub("%s+", " ")
     if desc ~= "" and desc ~= " " then add("Description: " .. desc:sub(1, 250)) end
-
-    local have = {}
-    for _, fn in ipairs({"fireproximityprompt","firetouchinterest","fireclickdetector","firesignal","getconnections","setclipboard","request","gethui","queue_on_teleport","Drawing"}) do
-        local ok, v = pcall(function() return env[fn] ~= nil or loadstring("return " .. fn)() ~= nil end)
-        if ok and v then have[#have + 1] = fn end
-    end
-    add("Executor functions: " .. table.concat(have, ", "))
-
-    local myPos
-    pcall(function() local r = getRoot() if r then myPos = r.Position end end)
+    add("Executor functions: " .. table.concat({"fireproximityprompt","firetouchinterest","fireclickdetector","firesignal","getconnections","setclipboard","request","gethui","queue_on_teleport","Drawing"}, ", "))
+    
+    local myPos pcall(function() local r = getRoot() if r then myPos = r.Position end end)
     if myPos then add("Player position: (" .. Maps.int(myPos.X) .. "," .. Maps.int(myPos.Y) .. "," .. Maps.int(myPos.Z) .. ")") end
-
-    pcall(function()
-        local ls = LP:FindFirstChild("leaderstats")
-        if ls then
-            local t = {}
-            for _, v in ipairs(ls:GetChildren()) do
-                local okv, val = pcall(function() return v.Value end)
-                t[#t + 1] = v.Name .. "=" .. (okv and tostring(val) or "?")
-            end
-            add("Leaderstats: " .. table.concat(t, ", "))
-        end
-    end)
 
     local tools, toolSeen, remotes = {}, {}, {}
     local prompts, promptSeen = {}, {}
@@ -754,11 +735,11 @@ local function ApplyTags(txt)
     if #res > 0 then clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n") end
     return clean
 end
---[[ RedxAI v30.0 | Part 3 of 3 | UI & Run ]]
+--[[ RedxAI v33.0 | Part 3 of 4 | UI & Control Panel ]]
 
 local PlayerGui = LP:WaitForChild("PlayerGui")
 local gui = Instance.new("ScreenGui")
-gui.Name = "RedxAI_v30" gui.ResetOnSpawn = false gui.DisplayOrder = 999 gui.Parent = PlayerGui
+gui.Name = "RedxAI_v33" gui.ResetOnSpawn = false gui.DisplayOrder = 999 gui.Parent = PlayerGui
 
 local function new(class, props, parent)
     local o = Instance.new(class)
@@ -771,6 +752,25 @@ local function corner(o, r)
     c.CornerRadius = UDim.new(0, r or 8)
     c.Parent = o
     return c
+end
+
+local SendScriptLabels = {
+    auto = "Code only", ar = "كود بس", en = "Code only", fr = "Code seul", es = "Solo codigo", de = "Nur Code", tr = "Sadece kod",
+}
+local function sendScriptLabel() return SendScriptLabels[State.Lang] or SendScriptLabels.auto end
+local function extractCodeOnly(text)
+    if not text or #text == 0 then return "" end
+    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
+    if code and #code > 0 then return trim(code) end
+    return trim(text)
+end
+local function hasCode(text)
+    if not text then return false end
+    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
+    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
+        if text:find(p, 1, true) then return true end
+    end
+    return false
 end
 
 local UIStrings = {
@@ -825,6 +825,11 @@ new("UIStroke", {Color = Color3.fromRGB(100, 15, 20), Thickness = 1}, input)
 local send = new("TextButton", { Size = UDim2.fromOffset(44, 38), Position = UDim2.new(1, -52, 1, -46), BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "▶", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 18, ZIndex = 10, Active = true }, main)
 corner(send, 8)
 
+local langFrame = new("ScrollingFrame", { Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40), BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 10 }, main)
+corner(langFrame, 8)
+new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
+new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
+
 -- ═══ CONTROL PANEL (LEFT) ═══
 local panel = new("Frame", { Name = "Panel", Size = UDim2.new(0, 200, 0, 220), Position = UDim2.new(0, 15, 0.5, -110), BackgroundColor3 = Color3.fromRGB(20, 20, 20), BorderSizePixel = 0, Visible = false, ZIndex = 20 }, gui)
 corner(panel, 8)
@@ -847,6 +852,7 @@ local walkLbl, walkMinus, walkPlus = makeRow(45, "Walk: 16")
 local flyLbl, flyMinus, flyPlus = makeRow(95, "Fly: 50")
 local noclipBtn = new("TextButton", { Size = UDim2.new(1, -10, 0, 35), Position = UDim2.new(0, 5, 0, 150), BackgroundColor3 = Color3.fromRGB(50, 50, 50), Text = "Noclip: OFF", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 22 }, panel)
 corner(noclipBtn, 6)
+--[[ RedxAI v33.0 | Part 4 of 4 | UI Logic & Run ]]
 
 UpdatePanel = function()
     panel.Visible = State.ShowPanel
@@ -867,12 +873,6 @@ noclipBtn.MouseButton1Click:Connect(function() Cmd.noclip(not State.Noclip) Upda
 RS.Heartbeat:Connect(function() if State.ShowPanel and not panel.Visible then UpdatePanel() end end)
 UpdatePanel()
 
--- ═══ UI LOGIC ═══
-local langFrame = new("ScrollingFrame", { Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40), BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 10 }, main)
-corner(langFrame, 8)
-new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
-new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
-
 local function applyLang()
     local L = UIStrings[State.Lang] or UIStrings.auto
     for i = 1, 4 do ModeInfo[i].name = L.modes[i]; ModeInfo[i].ph = L.ph[i] end
@@ -890,27 +890,13 @@ for i, langData in ipairs(Langs) do
         State.Lang = langData.code
         langFrame.Visible = false
         applyLang()
+        addMsg("Language: " .. langData.name, false)
     end)
 end
 applyLang()
 
 local function scrollDown() task.wait() chat.CanvasPosition = Vector2.new(0, chat.AbsoluteCanvasSize.Y) end
 local function setBubbleText(bubble, s) if #s > 100000 then s = s:sub(1, 100000) .. "\n... (too long)" end bubble.Text = s end
-
-local function extractCodeOnly(text)
-    if not text or #text == 0 then return "" end
-    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
-    if code and #code > 0 then return trim(code) end
-    return trim(text)
-end
-local function hasCode(text)
-    if not text then return false end
-    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
-    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
-        if text:find(p, 1, true) then return true end
-    end
-    return false
-end
 
 local function addMsg(txt, isUser)
     local container = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = #chat:GetChildren() }, chat)
@@ -1005,7 +991,6 @@ end
 send.MouseButton1Click:Connect(Submit)
 input.FocusLost:Connect(function(enter) if enter then Submit() end end)
 
--- Drag logic (only from top bar)
 local dragging, dragStart, startPos = false, nil, nil
 bar.InputBegan:Connect(function(i)
     if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
@@ -1028,6 +1013,7 @@ langBtn.MouseButton1Click:Connect(function() langFrame.Visible = not langFrame.V
 codeBtn.MouseButton1Click:Connect(function() 
     State.Mode = State.Mode % 4 + 1 
     applyLang()
+    addMsg("Mode: " .. ModeInfo[State.Mode].name, false)
 end)
 
 maxBtn.MouseButton1Click:Connect(function() 
@@ -1045,4 +1031,4 @@ closeBtn.MouseButton1Click:Connect(function()
     gui:Destroy() 
 end)
 
-addMsg("Welcome to RedxAI v30.0! Type 'help' for commands.", false)
+addMsg("Welcome to RedxAI v33.0! Type 'help' for commands.", false)
