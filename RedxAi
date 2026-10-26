@@ -1,4 +1,4 @@
---[[ RedxAI v27.1 | Part 1 of 8 | Core & Movement ]]
+--[[ RedxAI v29.0 | Part 1 of 8 | Core & Movement ]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -10,14 +10,15 @@ local env = (getgenv and getgenv()) or _G
 if env.RedxAI_Unload then pcall(env.RedxAI_Unload) end
 
 local State = {
-    Fly = false, FlySpeed = 60, Speed = nil, Jump = nil, Noclip = false, God = false,
+    Fly = false, FlySpeed = 50, Speed = 16, Jump = nil, Noclip = false, God = false,
     ESP = false, InfJump = false, Invisible = false, Spin = false, ClickTP = false,
-    AntiAFK = false, Busy = false, Lang = "auto", Mode = 1, SavedPos = nil,
+    AntiAFK = false, Busy = false, Lang = "auto", Mode = 1, SavedPos = nil, ShowPanel = false
 }
 local Conns = {}
 local FlyBV, FlyBG
 local ESPObjects = {}
 local Cmd = {}
+local UpdatePanel = function() end
 local origLight = {
     Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime, FogEnd = Lighting.FogEnd,
     GlobalShadows = Lighting.GlobalShadows, OutdoorAmbient = Lighting.OutdoorAmbient,
@@ -37,15 +38,9 @@ local function findPlayer(q)
     q = trim(q):lower()
     if q == "" then return nil end
     local list = Players:GetPlayers()
-    for _, p in ipairs(list) do
-        if p ~= LP and (p.Name:lower() == q or p.DisplayName:lower() == q) then return p end
-    end
-    for _, p in ipairs(list) do
-        if p ~= LP and (p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q) then return p end
-    end
-    for _, p in ipairs(list) do
-        if p ~= LP and (p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true)) then return p end
-    end
+    for _, p in ipairs(list) do if p ~= LP and (p.Name:lower() == q or p.DisplayName:lower() == q) then return p end end
+    for _, p in ipairs(list) do if p ~= LP and (p.Name:lower():sub(1, #q) == q or p.DisplayName:lower():sub(1, #q) == q) then return p end end
+    for _, p in ipairs(list) do if p ~= LP and (p.Name:lower():find(q, 1, true) or p.DisplayName:lower():find(q, 1, true)) then return p end end
     return nil
 end
 
@@ -73,26 +68,17 @@ local function getMoveVector()
 end
 
 function Cmd.fly(on, speed)
-    if speed then State.FlySpeed = math.clamp(tonumber(speed) or 60, 1, 100000) end
+    if speed then State.FlySpeed = math.clamp(tonumber(speed) or 50, 1, 100000) end
     State.Fly = on and true or false
     dropConn("fly")
     if FlyBV then FlyBV:Destroy() FlyBV = nil end
     if FlyBG then FlyBG:Destroy() FlyBG = nil end
     local h, r = getHum(), getRoot()
-    if not State.Fly then
-        if h then h.PlatformStand = false end
-        return "Fly OFF"
-    end
+    if not State.Fly then if h then h.PlatformStand = false end UpdatePanel() return "Fly OFF" end
     if not h or not r then State.Fly = false return "No character" end
     h.PlatformStand = true
-    FlyBV = Instance.new("BodyVelocity")
-    FlyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-    FlyBV.Velocity = Vector3.new(0, 0, 0)
-    FlyBV.Parent = r
-    FlyBG = Instance.new("BodyGyro")
-    FlyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5)
-    FlyBG.P = 1e4
-    FlyBG.Parent = r
+    FlyBV = Instance.new("BodyVelocity"); FlyBV.MaxForce = Vector3.new(1e5, 1e5, 1e5); FlyBV.Velocity = Vector3.new(0, 0, 0); FlyBV.Parent = r
+    FlyBG = Instance.new("BodyGyro"); FlyBG.MaxTorque = Vector3.new(1e5, 1e5, 1e5); FlyBG.P = 1e4; FlyBG.Parent = r
     setConn("fly", RS.RenderStepped:Connect(function()
         local root = getRoot()
         if not State.Fly or not root or not FlyBV or not FlyBV.Parent then return end
@@ -108,17 +94,20 @@ function Cmd.fly(on, speed)
         FlyBV.Velocity = dir * State.FlySpeed
         FlyBG.CFrame = CFrame.new(root.Position, root.Position + Vector3.new(fwd.X, 0, fwd.Z))
     end))
+    UpdatePanel()
     return "Fly ON (Speed: " .. State.FlySpeed .. ")"
 end
 
 function Cmd.speed(v)
     State.Speed = math.clamp(tonumber(v) or 16, 1, 100000)
     local h = getHum() if h then h.WalkSpeed = State.Speed end
+    UpdatePanel()
     return "Speed: " .. State.Speed
 end
 function Cmd.speedoff()
     State.Speed = nil
     local h = getHum() if h then h.WalkSpeed = 16 end
+    UpdatePanel()
     return "Speed: normal (16)"
 end
 
@@ -151,16 +140,18 @@ function Cmd.noclip(on)
                 if p:IsA("BasePart") then p.CanCollide = false end
             end
         end))
-        return "Noclip ON"
-    end
-    local c = LP.Character
-    if c then
-        for _, p in ipairs(c:GetDescendants()) do
-            if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end
+    else
+        local c = LP.Character
+        if c then
+            for _, p in ipairs(c:GetDescendants()) do
+                if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then p.CanCollide = true end
+            end
         end
     end
-    return "Noclip OFF"
+    UpdatePanel()
+    return on and "Noclip ON" or "Noclip OFF"
 end
+--[[ RedxAI v29.0 | Part 2 of 8 | Players & World ]]
 
 function Cmd.god(on)
     State.God = on
@@ -182,13 +173,8 @@ function Cmd.invisible(on)
             elseif p:IsA("Decal") then p.Transparency = v end
         end
     end
-    if on then
-        apply(1)
-        setConn("invis", RS.RenderStepped:Connect(function() apply(1) end))
-        return "Invisible ON"
-    end
-    apply(0)
-    return "Visible"
+    if on then apply(1); setConn("invis", RS.RenderStepped:Connect(function() apply(1) end)); return "Invisible ON" end
+    apply(0); return "Visible"
 end
 
 function Cmd.spin(on, speed)
@@ -225,9 +211,7 @@ function Cmd.clicktp(on)
             go(UIS:GetMouseLocation(), true)
         end
     end))
-    setConn("ctp2", UIS.TouchTapInWorld:Connect(function(pos, processed)
-        if not processed then go(pos, false) end
-    end))
+    setConn("ctp2", UIS.TouchTapInWorld:Connect(function(pos, processed) if not processed then go(pos, false) end end))
     return "Click-TP ON"
 end
 
@@ -236,17 +220,11 @@ function Cmd.antiafk(on)
     dropConn("afk")
     if on then
         local VU = game:GetService("VirtualUser")
-        setConn("afk", LP.Idled:Connect(function()
-            VU:CaptureController() VU:ClickButton2(Vector2.new(0, 0))
-        end))
+        setConn("afk", LP.Idled:Connect(function() VU:CaptureController() VU:ClickButton2(Vector2.new(0, 0)) end))
         return "Anti-AFK ON"
     end
     return "Anti-AFK OFF"
 end
-
-function Cmd.sit() local h = getHum() if h then h.Sit = true end return "Sat down" end
-function Cmd.reset() local h = getHum() if h then h.Health = 0 end return "Reset" end
---[[ RedxAI v27.1 | Part 2 of 8 | Players & World ]]
 
 function Cmd.kill(name)
     local plr = findPlayer(name)
@@ -261,10 +239,7 @@ function Cmd.fling(name)
     local plr = findPlayer(name)
     local root = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
     if root then
-        local bv = Instance.new("BodyVelocity")
-        bv.Velocity = Vector3.new(500, 500, 500)
-        bv.MaxForce = Vector3.new(1e5, 1e5, 1e5)
-        bv.Parent = root
+        local bv = Instance.new("BodyVelocity"); bv.Velocity = Vector3.new(500, 500, 500); bv.MaxForce = Vector3.new(1e5, 1e5, 1e5); bv.Parent = root
         task.delay(2, function() bv:Destroy() end)
         return "Flung " .. plr.Name
     end
@@ -274,10 +249,7 @@ end
 function Cmd.freeze(name)
     local plr = findPlayer(name)
     local root = plr and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart")
-    if root then
-        root.Anchored = not root.Anchored
-        return (root.Anchored and "Froze " or "Unfroze ") .. plr.Name
-    end
+    if root then root.Anchored = not root.Anchored return (root.Anchored and "Froze " or "Unfroze ") .. plr.Name end
     return "Player not found"
 end
 
@@ -285,10 +257,7 @@ function Cmd.tp(name)
     local target = findPlayer(name)
     local tr = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     local r = getRoot()
-    if tr and r then
-        r.CFrame = tr.CFrame * CFrame.new(0, 0, 3)
-        return "Teleported to " .. target.Name
-    end
+    if tr and r then r.CFrame = tr.CFrame * CFrame.new(0, 0, 3) return "Teleported to " .. target.Name end
     return "Player not found"
 end
 
@@ -296,110 +265,42 @@ function Cmd.bring(name)
     local target = findPlayer(name)
     local tr = target and target.Character and target.Character:FindFirstChild("HumanoidRootPart")
     local r = getRoot()
-    if tr and r then
-        tr.CFrame = r.CFrame * CFrame.new(0, 0, -3)
-        return "Brought " .. target.Name
-    end
+    if tr and r then tr.CFrame = r.CFrame * CFrame.new(0, 0, -3) return "Brought " .. target.Name end
     return "Player not found"
-end
-
-function Cmd.view(name)
-    local cam = workspace.CurrentCamera
-    name = trim(name)
-    if name == "" or name:lower() == "off" then
-        local h = getHum() if h then cam.CameraSubject = h end
-        return "Camera back to you"
-    end
-    local plr = findPlayer(name)
-    local h = plr and plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
-    if h then cam.CameraSubject = h return "Viewing " .. plr.Name end
-    return "Player not found"
-end
-
-function Cmd.players()
-    local names = {}
-    for _, p in ipairs(Players:GetPlayers()) do names[#names + 1] = p.Name end
-    return "(" .. #names .. ") " .. table.concat(names, ", ")
-end
-
-function Cmd.savepos()
-    local r = getRoot()
-    if r then State.SavedPos = r.CFrame return "Saved" end
-    return "No character"
-end
-function Cmd.loadpos()
-    local r = getRoot()
-    if r and State.SavedPos then r.CFrame = State.SavedPos return "Loaded" end
-    return "No saved position"
-end
-function Cmd.pos()
-    local r = getRoot() if not r then return "No character" end
-    local p = r.Position
-    return string.format("X:%.1f Y:%.1f Z:%.1f", p.X, p.Y, p.Z)
-end
-
-local function espAdd(plr)
-    if plr == LP then return end
-    local function put(char)
-        if not State.ESP or not char then return end
-        local old = char:FindFirstChild("RedxESP")
-        if old then old:Destroy() end
-        local h = Instance.new("Highlight")
-        h.Name = "RedxESP"
-        h.FillColor = Color3.fromRGB(255, 0, 0)
-        h.FillTransparency = 0.5
-        h.OutlineColor = Color3.fromRGB(255, 255, 255)
-        h.Parent = char
-        ESPObjects[#ESPObjects + 1] = h
-    end
-    put(plr.Character)
-    setConn("esp_" .. tostring(plr.UserId), plr.CharacterAdded:Connect(function(c) task.wait(0.5) put(c) end))
 end
 
 function Cmd.esp(on)
     State.ESP = on
-    for k in pairs(Conns) do
-        if tostring(k):sub(1, 4) == "esp_" then dropConn(k) end
-    end
+    for k in pairs(Conns) do if tostring(k):sub(1, 4) == "esp_" then dropConn(k) end end
     for _, o in ipairs(ESPObjects) do pcall(function() o:Destroy() end) end
     ESPObjects = {}
     if not on then return "ESP OFF" end
-    for _, p in ipairs(Players:GetPlayers()) do espAdd(p) end
-    setConn("esp_join", Players.PlayerAdded:Connect(function(p) espAdd(p) end))
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local h = Instance.new("Highlight")
+            h.Name = "RedxESP"; h.FillColor = Color3.fromRGB(255, 0, 0); h.FillTransparency = 0.5; h.Parent = p.Character
+            ESPObjects[#ESPObjects + 1] = h
+        end
+    end
     return "ESP ON"
 end
 
 function Cmd.fullbright(on)
-    if on == false then
-        for k, v in pairs(origLight) do pcall(function() Lighting[k] = v end) end
-        return "Fullbright OFF"
-    end
-    Lighting.Brightness = 2
-    Lighting.ClockTime = 12
-    Lighting.FogEnd = 100000
-    Lighting.GlobalShadows = false
-    Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+    if on == false then for k, v in pairs(origLight) do pcall(function() Lighting[k] = v end) end return "Fullbright OFF" end
+    Lighting.Brightness = 2; Lighting.ClockTime = 12; Lighting.FogEnd = 100000; Lighting.GlobalShadows = false; Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
     return "Fullbright ON"
 end
 
 function Cmd.day() Lighting.ClockTime = 14 return "Day" end
 function Cmd.night() Lighting.ClockTime = 0 return "Night" end
-
-function Cmd.gravity(v)
-    local g = tonumber(v) or 196.2
-    workspace.Gravity = g
-    return "Gravity: " .. g
-end
+function Cmd.gravity(v) local g = tonumber(v) or 196.2 workspace.Gravity = g return "Gravity: " .. g end
 
 function Cmd.btools()
     local bp = LP:FindFirstChildOfClass("Backpack") or LP:FindFirstChild("Backpack")
     if bp then
         for _, name in ipairs({"Grab", "Clone", "Hammer"}) do
             pcall(function()
-                local t = Instance.new("HopperBin")
-                t.BinType = Enum.BinType[name]
-                t.Name = name
-                t.Parent = bp
+                local t = Instance.new("HopperBin"); t.BinType = Enum.BinType[name]; t.Name = name; t.Parent = bp
             end)
         end
     end
@@ -450,17 +351,7 @@ function Cmd.chat(msg)
     return "Chat not available"
 end
 
-function Cmd.help()
-    return "Commands:\n"
-        .. "- fly 100 | fly off\n"
-        .. "- speed 50 | jump 120 | jump inf\n"
-        .. "- noclip | god | invisible | esp\n"
-        .. "- bring NAME | goto NAME | view NAME\n"
-        .. "- clicktp | spin | antiafk\n"
-        .. "- day | night | fullbright\n"
-        .. "- savepos | loadpos | pos | players\n"
-        .. "- /clear | /refresh"
-end
+function Cmd.help() return "Commands:\n- fly 100 | speed 50\n- noclip | god | esp\n- bring NAME | tp NAME" end
 
 setConn("hb", RS.Heartbeat:Connect(function()
     local h = getHum() if not h then return end
@@ -477,8 +368,9 @@ setConn("char", LP.CharacterAdded:Connect(function()
     if State.God then Cmd.god(true) end
     if State.Fly then Cmd.fly(true) end
     if State.Invisible then Cmd.invisible(true) end
+    if State.Noclip then Cmd.noclip(true) end
 end))
---[[ RedxAI v27.1 | Part 3A of 8 | Parser + Helpers ]]
+--[[ RedxAI v29.0 | Part 3A of 8 | Parser + Helpers ]]
 
 local CPMAP = {
     [0x0623] = 0x0627, [0x0625] = 0x0627, [0x0622] = 0x0627, [0x0671] = 0x0627,
@@ -541,68 +433,49 @@ local SCRIPTW = K("سكريبت","سكربت","اسكريبت","سكريبتات
 
 local function isQuestion(raw, t, toks)
     if raw:find("?", 1, true) or raw:find("؟", 1, true) then return true end
-    for _, w in ipairs(toks) do
-        for _, q in ipairs(QEXACT) do if w == q then return true end end
-    end
+    for _, w in ipairs(toks) do for _, q in ipairs(QEXACT) do if w == q then return true end end end
     return anyWord(t, toks, QUESTIONW)
 end
 
 local Features = {
-    {kw = K("قفز لا نهائي","قفز لانهائي","اقفز لا نهائي","infinite jump","inf jump","infjump"),
-        on = function() return Cmd.jump("inf") end, off = function() return Cmd.jumpoff() end},
-    {kw = K("طيران","طير","فلاي","fly"), on = function(n) return Cmd.fly(true, n) end, off = function() return Cmd.fly(false) end},
-    {kw = K("نوكليب","noclip","no clip"), on = function() return Cmd.noclip(true) end, off = function() return Cmd.noclip(false) end},
+    {kw = K("طيران","طير","فلاي","fly"), on = function(n) State.ShowPanel = true; return Cmd.fly(true, n) end, off = function() return Cmd.fly(false) end},
+    {kw = K("نوكليب","noclip","no clip"), on = function() State.ShowPanel = true; return Cmd.noclip(true) end, off = function() return Cmd.noclip(false) end},
     {kw = K("جود","god","خلود"), on = function() return Cmd.god(true) end, off = function() return Cmd.god(false) end},
-    {kw = K("انفزبل","انفزنال","invisible","اختفاء","اختفي","اخفيني"),
-        on = function() return Cmd.invisible(true) end, off = function() return Cmd.invisible(false) end},
+    {kw = K("انفزبل","انفزنال","invisible","اختفاء","اختفي","اخفيني"), on = function() return Cmd.invisible(true) end, off = function() return Cmd.invisible(false) end},
     {kw = K("اس بي","اسبي","esp","wallhack"), on = function() return Cmd.esp(true) end, off = function() return Cmd.esp(false) end},
     {kw = K("دوران","spin","لف"), on = function(n) return Cmd.spin(true, n) end, off = function() return Cmd.spin(false) end},
-    {kw = K("كليك تيليبورت","clicktp","click tp","كليك تي بي"), on = function() return Cmd.clicktp(true) end, off = function() return Cmd.clicktp(false) end},
-    {kw = K("antiafk","ضد افك","ضد afk","منع الطرد"), on = function() return Cmd.antiafk(true) end, off = function() return Cmd.antiafk(false) end},
-    {kw = K("فول برايت","فولبرايت","fullbright","full bright"), on = function() return Cmd.fullbright(true) end, off = function() return Cmd.fullbright(false) end},
+    {kw = K("كليك تيليبورت","clicktp","click tp"), on = function() return Cmd.clicktp(true) end, off = function() return Cmd.clicktp(false) end},
+    {kw = K("antiafk","ضد افك","ضد afk"), on = function() return Cmd.antiafk(true) end, off = function() return Cmd.antiafk(false) end},
+    {kw = K("فول برايت","فولبرايت","fullbright"), on = function() return Cmd.fullbright(true) end, off = function() return Cmd.fullbright(false) end},
     {kw = K("خليها نهار","اجعلها نهار"), on = function() return Cmd.day() end},
     {kw = K("خليها ليل","اجعلها ليل"), on = function() return Cmd.night() end},
-    {kw = K("سرعه","سبيد","speed","ws","walkspeed"), on = function(n) return Cmd.speed(n or 100) end, off = function() return Cmd.speedoff() end},
+    {kw = K("سرعه","سبيد","speed","ws","walkspeed"), on = function(n) State.ShowPanel = true; return Cmd.speed(n or 100) end, off = function() return Cmd.speedoff() end},
     {kw = K("قفز","اقفز","جمب","jump","jp"), on = function(n) return Cmd.jump(n or 150) end, off = function() return Cmd.jumpoff() end},
     {kw = K("جاذبيه","gravity"), on = function(n) return Cmd.gravity(n or 50) end, off = function() return Cmd.gravity(196.2) end},
     {kw = K("ادوات","btools"), on = function() return Cmd.btools() end},
-    {kw = K("سيرفر جديد","غير السيرفر","serverhop"), on = function() return Cmd.serverhop() end},
+    {kw = K("سيرفر جديد","serverhop"), on = function() return Cmd.serverhop() end},
     {kw = K("ريجوين","rejoin"), on = function() return Cmd.rejoin() end},
-    {kw = K("اقعد","sit"), on = function() return Cmd.sit() end},
-    {kw = K("احفظ","savepos"), on = function() return Cmd.savepos() end},
-    {kw = K("ارجع","loadpos"), on = function() return Cmd.loadpos() end},
-    {kw = K("احداثيات","coords","مكاني"), on = function() return Cmd.pos() end},
-    {kw = K("اللاعبين","players"), on = function() return Cmd.players() end},
     {kw = K("اوامر","مساعده","help"), on = function() return Cmd.help() end},
-    {kw = K("ريسيت","reset","respawn"), on = function() return Cmd.reset() end},
 }
 
 local NameCmds = {
     {kw = K("اقتل","kill"), run = function(n) return Cmd.kill(n) end},
     {kw = K("هات","جيب","bring"), run = function(n) return Cmd.bring(n) end},
     {kw = K("روح ل","انتقل ل","tp","goto","teleport"), run = function(n) return Cmd.tp(n) end},
-    {kw = K("شوف","view","spectate"), run = function(n) return Cmd.view(n) end},
 }
-local VIEWWORDS = K("view","spectate","مشاهده","unview")
 
 local function ParseDirectCommands(txt)
     if State.Mode ~= 1 and State.Mode ~= 4 then return nil end
-    local t = norm(txt)
-    local toks = tokenize(t)
-    local _, nWords = t:gsub("%S+", "")
+    local t = norm(txt); local toks = tokenize(t); local _, nWords = t:gsub("%S+", "")
     if #toks == 0 or nWords > 6 then return nil end
     if isQuestion(txt, t, toks) then return nil end
     if anyWord(t, toks, SCRIPTW) then return nil end
     local num = tonumber(t:match("%d+%.?%d*"))
     local isOff = anyWord(t, toks, OFFWORDS)
-    if isOff and anyWord(t, toks, VIEWWORDS) then return Cmd.view("") end
     for _, nc in ipairs(NameCmds) do
         for _, kw in ipairs(nc.kw) do
             local rest = afterKeyword(t, kw)
-            if rest and rest ~= "" then
-                local p = findPlayer(rest)
-                if p then return nc.run(p.Name) end
-            end
+            if rest and rest ~= "" then local p = findPlayer(rest) if p then return nc.run(p.Name) end end
         end
     end
     for _, f in ipairs(Features) do
@@ -613,7 +486,7 @@ local function ParseDirectCommands(txt)
     end
     return nil
 end
---[[ RedxAI v27.1 | Part 3B of 8 | Helpers + Maps Base ]]
+--[[ RedxAI v29.0 | Part 3B of 8 | Helpers + AI Core ]]
 
 local LangNames = {ar="Arabic",en="English",fr="French",es="Spanish",de="German",tr="Turkish"}
 local History = {{},{},{},{}}
@@ -635,31 +508,22 @@ local function looksLikeCode(s)
 end
 
 local RULES = {
-    "1. Luau only. task.wait/task.spawn/task.delay. Never wait/spawn/delay.",
-    "2. Re-run guard: cleanup in getgenv() under a unique key, call at top.",
-    "3. Track every connection and instance. Cleanup disconnects all + destroys GUI.",
-    "4. Every loop has a stop flag, pcall around body, task.wait(0.1)+. No bare while true.",
-    "5. FindFirstChild with nil checks, or WaitForChild with timeout.",
-    "6. Re-fetch Character/Humanoid/HumanoidRootPart every time. Handle CharacterAdded.",
-    "7. Check executor functions before use + fallback.",
-    "8. Cache lookups. Never GetDescendants every frame.",
-    "9. GUI for 2+ features: mobile, buttons >=44px, draggable mouse+touch, UICorner, ON/OFF color, status label, minimize+close. Parent to gethui() if available else PlayerGui.",
-    "10. If CURRENT SCRIPT provided, return FULL updated script.",
+    "1. Luau only. task.wait/task.spawn/task.delay.",
+    "2. Re-run guard: cleanup in getgenv() under a unique key.",
+    "3. Track every connection and instance. Cleanup disconnects all.",
+    "4. Every loop has a stop flag, pcall around body.",
+    "5. Re-fetch Character/Humanoid/HumanoidRootPart every time.",
+    "6. Check executor functions before use + fallback.",
+    "7. Cache lookups. Never GetDescendants every frame.",
+    "8. GUI for 2+ features: mobile, buttons >=44px, draggable.",
 }
 
-local TAGLIST = "[[fly:SPEED]] [[fly:off]] [[speed:NUM]] [[speed:off]] [[jump:NUM]] [[jump:inf]] [[jump:off]] "
-    .. "[[noclip:on]] [[noclip:off]] [[god:on]] [[god:off]] [[invisible:on]] [[invisible:off]] [[esp:on]] [[esp:off]] "
-    .. "[[spin:on]] [[spin:off]] [[clicktp:on]] [[clicktp:off]] [[antiafk:on]] [[antiafk:off]] "
-    .. "[[fullbright:on]] [[fullbright:off]] [[gravity:NUM]] [[day]] [[night]] [[sit]] [[reset]] "
-    .. "[[tp:NAME]] [[bring:NAME]] [[kill:NAME]] [[fling:NAME]] [[freeze:NAME]] [[view:NAME]] [[view:off]] "
-    .. "[[savepos]] [[loadpos]] [[pos]] [[players]] [[btools]] [[serverhop]] [[rejoin]] [[chat:MSG]]"
+local TAGLIST = "[[fly:SPEED]] [[fly:off]] [[speed:NUM]] [[speed:off]] [[jump:NUM]] [[jump:inf]] [[jump:off]] [[noclip:on]] [[noclip:off]] [[god:on]] [[god:off]] [[invisible:on]] [[invisible:off]] [[esp:on]] [[esp:off]] [[spin:on]] [[spin:off]] [[clicktp:on]] [[clicktp:off]] [[antiafk:on]] [[antiafk:off]] [[fullbright:on]] [[fullbright:off]] [[gravity:NUM]] [[day]] [[night]] [[sit]] [[reset]] [[tp:NAME]] [[bring:NAME]] [[kill:NAME]] [[fling:NAME]] [[freeze:NAME]] [[view:NAME]] [[view:off]] [[savepos]] [[loadpos]] [[pos]] [[players]] [[btools]] [[serverhop]] [[rejoin]] [[chat:MSG]]"
 
 local Maps = {
     _name = nil, _desc = nil, _scan = nil, _scanT = 0, _stats = nil, _placeId = nil,
-    remoteKW = {"buy","purchase","equip","claim","reward","weapon","give","grant","drop","pickup",
-                "spawn","summon","open","hatch","plant","harvest","sell","trade","collect","stock","shop"},
-    weaponKW = {"sword","gun","blade","weapon","knife","bow","staff","wand","pickaxe","axe","shield",
-                "pistol","rifle","shotgun","sniper","bomb","glove","slap","lucky"},
+    remoteKW = {"buy","purchase","equip","claim","reward","weapon","give","grant","drop","pickup","spawn","summon","open","hatch","plant","harvest","sell","trade","collect","stock","shop"},
+    weaponKW = {"sword","gun","blade","weapon","knife","bow","staff","wand","pickaxe","axe","shield","pistol","rifle","shotgun","sniper","bomb","glove","slap","lucky"},
     zoneKW = {"safe","spawn","lobby","shelter","checkpoint","plot","home","base","tower","portal","exit","entrance","hub"},
     farmKW = {"plant","crop","tree","seed","fruit","harvest","grow","berry","flower","vegetable","coin","gem","loot","chest","egg","pet","animal"},
     shopKW = {"shop","store","market","stock","purchase","seed","merchant"},
@@ -702,361 +566,32 @@ function Maps.GameName()
     end
     return n
 end
-
-function Maps.itemInfo(btn, buyset, sg)
-    local holder = btn.Parent
-    local label, stock
-    for _ = 1, 4 do
-        if not holder or holder == sg then break end
-        local nb = 0
-        for _, d in ipairs(holder:GetDescendants()) do if buyset[d] then nb = nb + 1 end end
-        if nb > 1 then break end
-        for _, c in ipairs(holder:GetDescendants()) do
-            if c:IsA("TextLabel") and c.Text ~= "" and #c.Text < 40 then
-                local tx = c.Text
-                if tx:lower():find("stock", 1, true) or tx:match("^[xX]%d+") then
-                    stock = stock or tx
-                elseif not tx:match("^[%d%p%s]+$") and not label and not Maps.hasKW(tx, Maps.buyKW) then
-                    label = tx
-                end
-            end
-        end
-        if label then break end
-        holder = holder.Parent
-    end
-    return label, stock
-end
---[[ RedxAI v27.1 | Part 4A of 8 | Scan + scanRoot ]]
-
-function Maps.Scan()
-    if Maps._scan and os.clock() - Maps._scanT < 60 then
-        return Maps._scan, Maps._stats, Maps.GameName()
-    end
-    local out = {}
-    local function add(s) out[#out + 1] = s end
-    local stats = {tools=0,remotes=0,prompts=0,clicks=0,touch=0,npcs=0,zones=0,shops=0,farmables=0,roles=0}
-    local gname = Maps.GameName()
-    add("Game: " .. gname .. " | PlaceId: " .. tostring(game.PlaceId) .. " | Players: " .. #Players:GetPlayers())
-    local desc = tostring(Maps._desc or ""):gsub("%s+", " ")
-    if desc ~= "" and desc ~= " " then add("Description: " .. desc:sub(1, 250)) end
-
-    local have = {}
-    for _, fn in ipairs({"fireproximityprompt","firetouchinterest","fireclickdetector","firesignal","getconnections","setclipboard","request","gethui","queue_on_teleport","Drawing"}) do
-        local ok, v = pcall(function() return env[fn] ~= nil or loadstring("return " .. fn)() ~= nil end)
-        if ok and v then have[#have + 1] = fn end
-    end
-    add("Executor functions: " .. table.concat(have, ", "))
-
-    local myPos
-    pcall(function() local r = getRoot() if r then myPos = r.Position end end)
-    if myPos then add("Player position: (" .. Maps.int(myPos.X) .. "," .. Maps.int(myPos.Y) .. "," .. Maps.int(myPos.Z) .. ")") end
-
-    pcall(function()
-        local ls = LP:FindFirstChild("leaderstats")
-        if ls then
-            local t = {}
-            for _, v in ipairs(ls:GetChildren()) do
-                local okv, val = pcall(function() return v.Value end)
-                t[#t + 1] = v.Name .. "=" .. (okv and tostring(val) or "?")
-            end
-            add("Leaderstats: " .. table.concat(t, ", "))
-        end
-    end)
-
-    pcall(function()
-        local cur = {}
-        for k, v in pairs(LP:GetAttributes()) do
-            if type(v) == "number" and Maps.hasKW(k, Maps.currencyKW) and #cur < 8 then
-                cur[#cur + 1] = tostring(k) .. "=" .. tostring(v)
-            end
-        end
-        if #cur > 0 then add("Currency attributes: " .. table.concat(cur, ", ")) end
-    end)
-
-    pcall(function()
-        local roles = {}
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LP and #roles < 15 then
-                local role
-                for _, attr in ipairs({"Role","Team","RoleName","Alignment","Type"}) do
-                    local v = p:GetAttribute(attr)
-                    if type(v) == "string" and #v < 20 then role = attr .. ":" .. v break end
-                end
-                if not role and p.Team then role = "Team:" .. p.Team.Name end
-                if not role and p.Character then
-                    local held = p.Character:FindFirstChildOfClass("Tool")
-                    if held then role = "Holding:" .. held.Name end
-                end
-                if role then
-                    roles[#roles + 1] = p.Name .. "=" .. role
-                    stats.roles = stats.roles + 1
-                end
-            end
-        end
-        if #roles > 0 then add("Role/team signals: " .. table.concat(roles, "; ")) end
-    end)
-
-    local tools, toolSeen, remotes = {}, {}, {}
-    local prompts, promptSeen, clicks, clickSeen, touch, touchSeen = {}, {}, {}, {}, {}, {}
-    local npcs, npcSeen, near, zones, zoneSeen = {}, {}, {}, {}, {}
-    local farmables, farmSeen = {}, {}
-    local scanned = 0
-
-    local function addZone(v, cls)
-        local nm = v.Name
-        if nm:lower() == "baseplate" or zoneSeen[nm] or #zones >= 20 then return end
-        zoneSeen[nm] = true
-        stats.zones = stats.zones + 1
-        local d = ""
-        local pos = Maps.posOf(v)
-        if pos and myPos then d = " [" .. Maps.int((pos - myPos).Magnitude) .. " studs]" end
-        zones[#zones + 1] = nm .. "(" .. cls .. ")" .. d
-    end
-
-    local function scanRoot(root, label)
-        local okL, list = pcall(function() return root:GetDescendants() end)
-        if not okL then return end
-        for _, v in ipairs(list) do
-            scanned = scanned + 1
-            if scanned % 2500 == 0 then task.wait() end
-            local cls = v.ClassName
-            if cls == "Tool" then
-                stats.tools = stats.tools + 1
-                if not toolSeen[v.Name] and #tools < 40 then
-                    toolSeen[v.Name] = true tools[#tools + 1] = v.Name .. "@" .. label
-                end
-            elseif cls == "RemoteEvent" or cls == "RemoteFunction" then
-                stats.remotes = stats.remotes + 1
-                if #remotes < 400 then
-                    local path = v:GetFullName():gsub("^[%w_]+%.", "")
-                    remotes[#remotes + 1] = {kind = (cls == "RemoteEvent") and "E:" or "F:", path = path,
-                        hit = Maps.hasKW(v.Name, Maps.remoteKW) or Maps.hasKW(path, Maps.remoteKW)}
-                end
-            elseif cls == "ProximityPrompt" then
-                stats.prompts = stats.prompts + 1
-                local pname = v.Parent and v.Parent.Name or "?"
-                local key = pname .. "|" .. v.ActionText
-                if not promptSeen[key] and #prompts < 25 then
-                    promptSeen[key] = true prompts[#prompts + 1] = pname .. "[" .. v.ActionText .. "]"
-                end
-            elseif cls == "ClickDetector" then
-                stats.clicks = stats.clicks + 1
-                local pname = v.Parent and v.Parent.Name or "?"
-                if not clickSeen[pname] and #clicks < 15 then
-                    clickSeen[pname] = true clicks[#clicks + 1] = pname
-                end
-            elseif cls == "TouchTransmitter" then
-                local p = v.Parent
-                if p and Maps.hasKW(p.Name, Maps.weaponKW) then
-                    stats.touch = stats.touch + 1
-                    if not touchSeen[p.Name] and #touch < 15 then
-                        touchSeen[p.Name] = true touch[#touch + 1] = p.Name
-                    end
-                end
-            elseif cls == "Humanoid" then
-                local model = v.Parent
-                if model and model:IsA("Model") and not Players:GetPlayerFromCharacter(model) then
-                    stats.npcs = stats.npcs + 1
-                    local key = model.Name
-                    local e = npcSeen[key]
-                    if not e and #npcs < 20 then
-                        e = {name = key, n = 0, hp = v.MaxHealth, ws = v.WalkSpeed,
-                             where = label .. "/" .. (model.Parent and model.Parent.Name or "?")}
-                        npcSeen[key] = e npcs[#npcs + 1] = e
-                    end
-                    if e then e.n = e.n + 1 end
-                    if label == "Workspace" and myPos then
-                        local rp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-                        if rp then
-                            local d = (rp.Position - myPos).Magnitude
-                            if not near[key] or d < near[key] then near[key] = d end
-                        end
-                    end
-                end
-            elseif cls == "SpawnLocation" then addZone(v, cls)
-            elseif (cls == "Model" or cls == "Part" or cls == "MeshPart" or cls == "Folder") and label == "Workspace" then
-                if Maps.hasKW(v.Name, Maps.zoneKW) then addZone(v, cls) end
-            end
-            if label == "Workspace" and (cls == "BasePart" or cls == "Model") and #farmables < 25 then
-                if not farmSeen[v.Name] and Maps.hasKW(v.Name, Maps.farmKW) then
-                    farmSeen[v.Name] = true
-                    stats.farmables = stats.farmables + 1
-                    local extra = ""
-                    local pos = Maps.posOf(v)
-                    if pos and myPos then extra = " [" .. Maps.int((pos - myPos).Magnitude) .. "s]" end
-                    farmables[#farmables + 1] = v.Name .. "(" .. cls .. ")" .. extra
-                end
-            end
-        end
-    end
---[[ RedxAI v27.1 | Part 4B of 8 | Rest of Scan + System + AI ]]
-
-    scanRoot(workspace, "Workspace")
-    scanRoot(game:GetService("ReplicatedStorage"), "ReplicatedStorage")
-    scanRoot(game:GetService("StarterPack"), "StarterPack")
-    local bp = LP:FindFirstChildOfClass("Backpack")
-    if bp then scanRoot(bp, "Backpack") end
-
-    pcall(function()
-        local shops = {}
-        for _, sg in ipairs(LP.PlayerGui:GetChildren()) do
-            if sg:IsA("ScreenGui") and sg.Enabled and not sg.Name:find("^RedxAI") and #shops < 5 then
-                local buyset = {}
-                for _, d in ipairs(sg:GetDescendants()) do
-                    if d:IsA("TextButton") and Maps.hasKW(d.Text, Maps.buyKW) then buyset[d] = true end
-                end
-                local isShop = Maps.hasKW(sg.Name, Maps.shopKW) or next(buyset) ~= nil
-                if isShop then
-                    stats.shops = stats.shops + 1
-                    local items = {}
-                    for btn in pairs(buyset) do
-                        if #items >= 25 then break end
-                        local label, stock = Maps.itemInfo(btn, buyset, sg)
-                        if label then items[#items + 1] = label .. (stock and ("(" .. stock .. ")") or "") end
-                    end
-                    if #items > 0 then shops[#shops + 1] = sg.Name .. "{" .. table.concat(items, " | ") .. "}"
-                    else shops[#shops + 1] = sg.Name .. "{shop, no items parsed}" end
-                end
-            end
-        end
-        if #shops > 0 then add("Open shop GUIs: " .. table.concat(shops, " ; ")) end
-    end)
-
-    pcall(function()
-        local btns = {}
-        for _, v in ipairs(LP.PlayerGui:GetDescendants()) do
-            if #btns >= 15 then break end
-            if v:IsA("TextButton") and #v.Text <= 30 and v.Visible then
-                local own = v:FindFirstAncestorWhichIsA("ScreenGui")
-                if not (own and own.Name:find("^RedxAI")) then
-                    local t = v.Text:lower()
-                    if t:find("shop") or t:find("store") or t:find("open") or t:find("stock") or t:find("market") then
-                        btns[#btns + 1] = v.Name .. "[" .. v.Text .. "]"
-                    end
-                end
-            end
-        end
-        if #btns > 0 then add("Shop-open buttons: " .. table.concat(btns, ", ")) end
-    end)
-
-    pcall(function()
-        local c = LP.Character
-        local held = c and c:FindFirstChildOfClass("Tool")
-        if held then add("Held tool: " .. held.Name) end
-    end)
-
-    if #npcs > 0 then
-        local nt = {}
-        for _, e in ipairs(npcs) do nt[#nt + 1] = e.name .. "x" .. e.n .. "(HP" .. Maps.int(e.hp) .. ",WS" .. Maps.int(e.ws) .. ")" end
-        add("NPCs (" .. stats.npcs .. "): " .. table.concat(nt, "; "))
-        local arr = {}
-        for k, d in pairs(near) do arr[#arr + 1] = {k, d} end
-        table.sort(arr, function(a, b) return a[2] < b[2] end)
-        local at = {}
-        for i = 1, math.min(#arr, 5) do at[i] = arr[i][1] .. " " .. Maps.int(arr[i][2]) .. "s" end
-        if #at > 0 then add("Nearest NPCs: " .. table.concat(at, ", ")) end
-    else
-        add("NPCs: NONE (peaceful map or not spawned). Do NOT build anti-chase.")
-    end
-
-    if #zones > 0 then add("Safe zones: " .. table.concat(zones, ", ")) end
-    if #farmables > 0 then add("Farmables (" .. stats.farmables .. "): " .. table.concat(farmables, ", ")) end
-    if #tools > 0 then add("Tools (" .. stats.tools .. "): " .. table.concat(tools, ", ")) end
-
-    table.sort(remotes, function(a, b) if a.hit ~= b.hit then return a.hit end return a.path < b.path end)
-    if #remotes > 0 then
-        local rt = {}
-        for i = 1, math.min(#remotes, 40) do rt[i] = remotes[i].kind .. remotes[i].path end
-        add("Remotes (" .. stats.remotes .. ", keyword first): " .. table.concat(rt, ", "))
-    end
-    if #prompts > 0 then add("Prompts (" .. stats.prompts .. "): " .. table.concat(prompts, ", ")) end
-    if #clicks > 0 then add("ClickDetectors (" .. stats.clicks .. "): " .. table.concat(clicks, ", ")) end
-    if #touch > 0 then add("Touch pickups: " .. table.concat(touch, ", ")) end
-
-    add("Workspace top: ")
-    pcall(function()
-        local t = {}
-        for _, v in ipairs(workspace:GetChildren()) do
-            if v.ClassName ~= "Terrain" and v.ClassName ~= "Camera" and not Players:GetPlayerFromCharacter(v) and #t < 25 then
-                t[#t + 1] = v.Name .. "(" .. v.ClassName .. ")"
-            end
-        end
-        out[#out] = out[#out] .. table.concat(t, ", ")
-    end)
-
-    local s = table.concat(out, "\n")
-    if #s > 7000 then s = s:sub(1, 7000) .. "..." end
-    Maps._scan, Maps._stats, Maps._scanT = s, stats, os.clock()
-    return s, stats, gname
-end
+--[[ RedxAI v29.0 | Part 4B of 8 | AI System + Request ]]
 
 function Maps.System(L)
     return table.concat({
-        "You are RedxAI MapSmith, a senior Roblox Luau engineer writing client scripts for ONE game at a time, for Delta executor (Android, iOS, PC).",
-        "",
-        "You get a MAP SCAN read live: name, description, tools, NPCs, remotes, prompts, click detectors, pickups, safe zones, leaderstats, currency attributes, player roles/teams/held tools, open shop GUIs with items+stock, shop-open buttons, and farmables. The scan is your ONLY source of truth. NOT every map has monsters - many are peaceful (simulators, gardens, obbies, roleplay, MM2). Build for the user's ACTUAL request.",
-        "",
-        "REQUEST PLAYBOOK:",
-        "",
-        "SHOP/BUY: if shop is open in PlayerGui, find item by name-match (case-insensitive partial), fire its Buy button via firebutton/firesignal/getconnections. If only shop-open button visible, click it first, wait 1s, re-scan, then buy. Provide GUI where user types target name - script loops over buy buttons, matches closest label, fires. NEVER invent buy method - inspect connections or firesignal/firebutton on MouseButton1Click. Only ProximityPrompt on shop? Fire that.",
-        "",
-        "FARM/COLLECT: coins/gems -> teleport HRP to each within radius, 0.15s waits. Plant/harvest (Garden style) -> detect plots ('plot'/'soil'/'dirt'), equip seed, click plot; harvest mature plants by name ('fruit'/'crop'/'harvest'). Pet Sim eggs -> find by 'egg' pattern, teleport, fire prompt.",
-        "",
-        "ROLE ESP (MM2): scan's 'Role/team signals' shows attributes/teams/held tools. Murderer=RED, Sheriff=BLUE, Innocent=GREEN, Unknown=WHITE. BillboardGui above each player showing role. Refresh every 1-2s. State in header role detection is HEURISTIC (Knife=Murderer, Gun=Sheriff).",
-        "",
-        "MONSTER/CHASE: server AI cannot be stopped client-side. Build THREAT MONITOR: measure distance to each NPC every ~0.3s, if inside radius either (a) move to safe zone from scan, or (b) alert only. GUI radius +/- and alert-only toggle. State clearly in header monsters NOT disabled. If scan shows ZERO NPCs, refuse to build fake anti-chase.",
-        "",
-        "STEALTH: LocalTransparencyModifier=1 on player + CanCollide=false on enemies + optional push to safe zone.",
-        "",
-        "EGG COLLECTOR: search for BaseParts matching {egg/collectable/coin/seed/drop/loot}; teleport HRP to (pos+Vector3.new(0,3,0)); 0.15s wait; fire any ProximityPrompt. Stop button + per-target cooldown.",
-        "",
-        "WEAPONS/ITEMS ORDER: A) game's pickups (Tools in workspace + firetouchinterest on Handle, or their prompts/clicks). B) game's own GUI buttons via firesignal/getconnections. C) Remotes ONLY when scan shows purpose+args clearly; otherwise CONFIG table 'EDIT ME'. NEVER guess arguments. Never clone Tool into Backpack as 'giving a weapon'.",
-        "",
-        "VAGUE REQUEST: BEST-HITS bundle based on genre (ESP + AutoFarm + Teleport + currency display). Note in header it's generic.",
-        "",
-        "SAFETY: no anti-cheat bypass, no kill/fling/freeze/grief/admin impersonation. Prefer ProximityPrompt + ClickDetector over remote calls.",
-        "",
+        "You are RedxAI MapSmith, an engineer writing scripts for Delta executor.",
+        "You get a MAP SCAN. Build for the user's ACTUAL request.",
         "OUTPUT: ONE complete script as RAW Lua code. NO code fences. NO introductory text. Start directly with the code.",
-        "Header (5-8 lines, in " .. L .. "): game name, what script DOES and DOES NOT do, usage, scan entries used, EDIT ME notes.",
-        "All comments in " .. L .. ". No placeholders.",
-        "",
         "ENGINEERING RULES:",
     }, "\n") .. "\n" .. table.concat(RULES, "\n")
-end
-
-function Maps.Report(gname, stats, st, err, mismatch)
-    local L = {"Map: " .. tostring(gname)}
-    L[#L + 1] = "Scan: " .. stats.tools .. " tools | " .. stats.npcs .. " npc | " .. stats.zones .. " zone | " .. stats.shops .. " shop | " .. stats.farmables .. " farmable | " .. stats.roles .. " role | " .. stats.remotes .. " remote | " .. stats.prompts .. " prompt"
-    if stats.tools + stats.remotes + stats.prompts + stats.clicks + stats.npcs + stats.zones + stats.shops + stats.farmables == 0 then
-        L[#L + 1] = "Nothing useful found. Wait for game to load or /refresh."
-    end
-    if stats.shops == 0 and stats.farmables > 0 then L[#L + 1] = "Farming map. Ask for 'plant/harvest' or 'collect coins'." end
-    if stats.npcs == 0 and stats.roles > 0 then L[#L + 1] = "Roles map. Ask 'who is murderer'." end
-    if mismatch then L[#L + 1] = "Different map? /refresh" end
-    if st == "ok" then L[#L + 1] = "Syntax OK."
-    elseif st == "syntax" then L[#L + 1] = "Syntax error: " .. (tostring(err):gsub("[\r\n]+", " "))
-    else L[#L + 1] = "Not code. Explain more." end
-    return table.concat(L, "\n") .. "\n----------"
 end
 
 local function BuildSystem(mode, text)
     local L = langHint(text)
     if mode == 4 then return Maps.System(L) end
-    local splitRule = "\nSPLITTING: If user asks 'in 2 parts'/'on 3 times', send ONLY first part, end with EXACTLY '(type: next) to get the next part'."
     if mode == 3 then
-        return "You are RedxAI Scripter, an elite Roblox Lua scripter for Delta executor.\n"
+        return "You are RedxAI Scripter.\n"
             .. "1. Write IMMEDIATELY. Never ask.\n"
             .. "2. Output ONLY raw Lua code. No fences. No text. Start directly with 'local' or 'game'.\n"
-            .. "CRITICAL: Do NOT write any introductory or concluding text (like 'Here is the script' or 'اسم اللعبة'). Just the code.\n"
-            .. "3. Comments in " .. L .. "." .. splitRule
+            .. "CRITICAL: Do NOT write any introductory or concluding text. Just the code.\n"
+            .. "3. Comments in " .. L .. "."
     elseif mode == 2 then
-        return "You are RedxAI CodeMaster, an expert Roblox Lua developer.\n"
-            .. "Explain clearly. Code inside lua blocks.\nReply in " .. L .. "." .. splitRule
+        return "You are RedxAI CodeMaster.\nExplain clearly. Code inside lua blocks.\nReply in " .. L .. "."
     end
-    return "You are RedxAI, a brilliant AI assistant inside a Roblox executor (Delta).\n"
-        .. "Answer accurately. Remember past messages. If script requested, write it in lua block. Reply in " .. L .. ".\n"
+    return "You are RedxAI, a brilliant AI assistant inside a Roblox executor.\n"
+        .. "If script requested, write it in lua block. Reply in " .. L .. ".\n"
         .. "GAME ACTIONS: write a short reply + matching tags at VERY END. Tags: " .. TAGLIST
-        .. splitRule
 end
 
 local function pushHist(mode, q, a)
@@ -1076,8 +611,7 @@ local function AskAI(text, mode, force)
     local u
     if mode == 4 then
         local scan = Maps.Scan()
-        u = "MAP SCAN (live):\n" .. scan .. "\n\nUSER REQUEST: " .. text
-            .. "\n\nRead scan. No enemies? Don't build anti-chase. Shops exist + user wants buy? Use them. Roles exist + user asks who? Role ESP. Output ONLY raw Lua, no fences. Comments in " .. L .. "."
+        u = "MAP SCAN (live):\n" .. scan .. "\n\nUSER REQUEST: " .. text .. "\n\nOutput ONLY raw Lua, no fences. Comments in " .. L .. "."
         if force then u = u .. "\n\nIMPORTANT: output ONLY raw Lua code. Do not refuse." end
     elseif mode == 3 then
         u = "Write complete Roblox Lua script. Comments in " .. L .. ".\nRequest: " .. text
@@ -1089,10 +623,7 @@ local function AskAI(text, mode, force)
     for _, model in ipairs({"openai", "mistral"}) do
         local ok, body = pcall(function() return HS:JSONEncode({model = model, messages = msgs}) end)
         if ok then
-            local ok1, res = pcall(req, {
-                Url = "https://text.pollinations.ai/openai", Method = "POST",
-                Headers = {["Content-Type"] = "application/json"}, Body = body,
-            })
+            local ok1, res = pcall(req, {Url = "https://text.pollinations.ai/openai", Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = body})
             if ok1 and res and res.Body then
                 local ok2, data = pcall(function() return HS:JSONDecode(res.Body) end)
                 if ok2 and type(data) == "table" and data.choices and data.choices[1] and data.choices[1].message then
@@ -1105,38 +636,26 @@ local function AskAI(text, mode, force)
     return nil, "server"
 end
 
-local function onoff(a)
-    a = tostring(a or ""):lower()
-    return not (a == "off" or a == "false" or a == "0" or a == "no")
-end
-
 local Tags = {
     fly = function(a) if a:lower() == "off" then return Cmd.fly(false) end return Cmd.fly(true, tonumber(a)) end,
     speed = function(a) if tonumber(a) then return Cmd.speed(tonumber(a)) end return Cmd.speedoff() end,
     jump = function(a) a = a:lower() if a == "inf" then return Cmd.jump("inf") end if tonumber(a) then return Cmd.jump(tonumber(a)) end return Cmd.jumpoff() end,
-    noclip = function(a) return Cmd.noclip(onoff(a)) end,
-    god = function(a) return Cmd.god(onoff(a)) end,
-    invisible = function(a) return Cmd.invisible(onoff(a)) end,
-    esp = function(a) return Cmd.esp(onoff(a)) end,
-    spin = function(a) return Cmd.spin(onoff(a), tonumber(a)) end,
-    clicktp = function(a) return Cmd.clicktp(onoff(a)) end,
-    antiafk = function(a) return Cmd.antiafk(onoff(a)) end,
-    fullbright = function(a) return Cmd.fullbright(onoff(a)) end,
+    noclip = function(a) return Cmd.noclip(a:lower() == "on" or a:lower() == "true") end,
+    god = function(a) return Cmd.god(a:lower() == "on" or a:lower() == "true") end,
+    invisible = function(a) return Cmd.invisible(a:lower() == "on" or a:lower() == "true") end,
+    esp = function(a) return Cmd.esp(a:lower() == "on" or a:lower() == "true") end,
+    spin = function(a) return Cmd.spin(a:lower() == "on" or a:lower() == "true", tonumber(a)) end,
+    clicktp = function(a) return Cmd.clicktp(a:lower() == "on" or a:lower() == "true") end,
+    antiafk = function(a) return Cmd.antiafk(a:lower() == "on" or a:lower() == "true") end,
+    fullbright = function(a) return Cmd.fullbright(a:lower() == "on" or a:lower() == "true") end,
     gravity = function(a) return Cmd.gravity(tonumber(a)) end,
     day = function() return Cmd.day() end,
     night = function() return Cmd.night() end,
-    sit = function() return Cmd.sit() end,
-    reset = function() return Cmd.reset() end,
     tp = function(a) return Cmd.tp(a) end,
     bring = function(a) return Cmd.bring(a) end,
     kill = function(a) return Cmd.kill(a) end,
     fling = function(a) return Cmd.fling(a) end,
     freeze = function(a) return Cmd.freeze(a) end,
-    view = function(a) return Cmd.view(a) end,
-    savepos = function() return Cmd.savepos() end,
-    loadpos = function() return Cmd.loadpos() end,
-    pos = function() return Cmd.pos() end,
-    players = function() return Cmd.players() end,
     btools = function() return Cmd.btools() end,
     serverhop = function() return Cmd.serverhop() end,
     rejoin = function() return Cmd.rejoin() end,
@@ -1147,21 +666,18 @@ local function ApplyTags(txt)
     local res = {}
     local clean = txt:gsub("%s*%[%[(%a+):?([^%]]*)%]%]", function(name, arg)
         local fn = Tags[name:lower()]
-        if fn then
-            local ok, r = pcall(fn, trim(arg))
-            if ok and r then res[#res + 1] = r end
-        end
+        if fn then local ok, r = pcall(fn, trim(arg)) if ok and r then res[#res + 1] = r end end
         return ""
     end)
     clean = trim(clean)
     if #res > 0 then clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n") end
     return clean
 end
---[[ RedxAI v27.1 | Part 5A of 8 | UI Setup + Reader ]]
+--[[ RedxAI v29.0 | Part 5A of 8 | UI + Control Panel ]]
 
 local PlayerGui = LP:WaitForChild("PlayerGui")
 local gui = Instance.new("ScreenGui")
-gui.Name = "RedxAI_v27" gui.ResetOnSpawn = false gui.DisplayOrder = 999 gui.Parent = PlayerGui
+gui.Name = "RedxAI_v29" gui.ResetOnSpawn = false gui.DisplayOrder = 999 gui.Parent = PlayerGui
 
 local function new(class, props, parent)
     local o = Instance.new(class)
@@ -1174,172 +690,6 @@ local function corner(o, r)
     c.CornerRadius = UDim.new(0, r or 8)
     c.Parent = o
     return c
-end
-
-local SendScriptLabels = {
-    auto = "Code only", ar = "كود بس", en = "Code only", fr = "Code seul", es = "Solo codigo", de = "Nur Code", tr = "Sadece kod",
-}
-local function sendScriptLabel() return SendScriptLabels[State.Lang] or SendScriptLabels.auto end
-local function extractCodeOnly(text)
-    if not text or #text == 0 then return "" end
-    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
-    if code and #code > 0 then return trim(code) end
-    return trim(text)
-end
-local function hasCode(text)
-    if not text then return false end
-    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
-    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
-        if text:find(p, 1, true) then return true end
-    end
-    return false
-end
-
-local ModeInfo = {
-    {icon = "💬", name = "", color = Color3.fromRGB(80, 10, 15), ph = "", chatBg = Color3.fromRGB(10, 4, 5), bubble = Color3.fromRGB(30, 10, 15)},
-    {icon = "🧠", name = "", color = Color3.fromRGB(200, 150, 0), ph = "", chatBg = Color3.fromRGB(20, 15, 5), bubble = Color3.fromRGB(30, 20, 5)},
-    {icon = "📜", name = "", color = Color3.fromRGB(50, 200, 100), ph = "", chatBg = Color3.fromRGB(5, 15, 10), bubble = Color3.fromRGB(5, 20, 10)},
-    {icon = "🗺️", name = "", color = Color3.fromRGB(30, 80, 180), ph = "", chatBg = Color3.fromRGB(5, 10, 20), bubble = Color3.fromRGB(10, 20, 40)},
-}
-local Langs = {
-    {code = "auto", name = "Auto"}, {code = "ar", name = "Arabic"}, {code = "en", name = "English"},
-    {code = "fr", name = "Francais"}, {code = "es", name = "Espanol"}, {code = "de", name = "Deutsch"},
-    {code = "tr", name = "Turkce"},
-}
-
-local smallSize, largeSize = UDim2.fromOffset(320, 220), UDim2.fromOffset(320, 420)
-local isMaximized = false
-
-local main = new("Frame", {
-    Name = "Main", Size = smallSize, Position = UDim2.new(0.5, -160, 0.5, -110),
-    BackgroundColor3 = Color3.fromRGB(18, 8, 10), BorderSizePixel = 0, Active = true, ClipsDescendants = true,
-}, gui)
-corner(main, 10)
-new("UIStroke", {Color = Color3.fromRGB(150, 20, 30), Thickness = 1.5}, main)
-
-local bar = new("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25), BorderSizePixel = 0, Active = true, ZIndex = 2}, main)
-corner(bar, 10)
-new("TextLabel", {Size = UDim2.new(1, -190, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
-    Text = "RedxAI Pro", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
-    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3}, bar)
-
-local function headBtn(txt, x, w)
-    local b = new("TextButton", {
-        Size = UDim2.fromOffset(w or 26, 24), Position = UDim2.new(1, x, 0, 5.5),
-        BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = txt, TextColor3 = Color3.new(1, 1, 1),
-        Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 4,
-    }, bar)
-    corner(b, 6)
-    return b
-end
-local closeBtn = headBtn("❌", -32)
-local maxBtn = headBtn("🗖", -62, 34)
-local minBtn = headBtn("🗕", -100, 34)
-local langBtn = headBtn("🌐", -138, 34)
-local codeBtn = headBtn("💬", -178, 44)
-
-local langFrame = new("ScrollingFrame", {
-    Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40),
-    BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 10,
-}, main)
-corner(langFrame, 8)
-new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
-new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
-
-local chat = new("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 1, -90), Position = UDim2.fromOffset(8, 42), BackgroundColor3 = ModeInfo[1].chatBg,
-    BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 1,
-}, main)
-corner(chat, 8)
-new("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, chat)
-new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, chat)
-
-local function scrollDown() task.wait() chat.CanvasPosition = Vector2.new(0, chat.AbsoluteCanvasSize.Y) end
-local function setBubbleText(bubble, s)
-    if #s > 100000 then s = s:sub(1, 100000) .. "\n... (too long)" end
-    bubble.Text = s
-end
-
-local readerOverlay = new("TextButton", {
-    Name = "ReaderOverlay", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0),
-    BackgroundTransparency = 0.6, Visible = false, ZIndex = 50, Text = "", AutoButtonColor = false,
-}, gui)
-local readerFrame = new("Frame", {
-    Name = "ReaderFrame", Size = UDim2.new(0.9, 0, 0.85, 0), Position = UDim2.new(0.05, 0, 0.05, 0),
-    BackgroundColor3 = Color3.fromRGB(20, 5, 8), BorderSizePixel = 0, Visible = false, ZIndex = 51, Active = true,
-}, gui)
-corner(readerFrame, 10)
-new("UIStroke", {Color = Color3.fromRGB(200, 20, 30), Thickness = 2}, readerFrame)
-local rBar = new("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25), BorderSizePixel = 0, ZIndex = 52}, readerFrame)
-corner(rBar, 10)
-new("TextLabel", {Size = UDim2.new(1, -100, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
-    Text = "Text Reader", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
-    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 53}, rBar)
-local rClose = new("TextButton", {Size = UDim2.fromOffset(26, 24), Position = UDim2.new(1, -32, 0, 5.5),
-    BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = "❌", TextColor3 = Color3.new(1, 1, 1),
-    Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 54}, rBar)
-corner(rClose, 6)
-local rCopy = new("TextButton", {Size = UDim2.fromOffset(40, 24), Position = UDim2.new(1, -80, 0, 5.5),
-    BackgroundColor3 = Color3.fromRGB(50, 200, 100), Text = "📋", TextColor3 = Color3.new(1, 1, 1),
-    Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 54}, rBar)
-corner(rCopy, 6)
-local rText = new("TextBox", {
-    Size = UDim2.new(1, -20, 1, -50), Position = UDim2.fromOffset(10, 42), BackgroundColor3 = Color3.fromRGB(10, 2, 5),
-    TextColor3 = Color3.fromRGB(150, 255, 150), Font = Enum.Font.Code, TextSize = 14, TextWrapped = true,
-    TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-    ClearTextOnFocus = false, MultiLine = true, Text = "", ZIndex = 52,
-}, readerFrame)
-corner(rText, 6)
-
-local function openReader(text) rText.Text = text readerOverlay.Visible = true readerFrame.Visible = true end
-local function closeReader() readerOverlay.Visible = false readerFrame.Visible = false end
-rClose.MouseButton1Click:Connect(closeReader)
-readerOverlay.MouseButton1Click:Connect(closeReader)
-rCopy.MouseButton1Click:Connect(function()
-    local clip = setclipboard or toclipboard or set_clipboard
-    local ok = clip and pcall(clip, rText.Text)
-    rCopy.Text = ok and "✅" or "⚠"
-    task.wait(1.3)
-    rCopy.Text = "📋"
-end)
---[[ RedxAI v27.1 | Part 5 | UI & Run (Fully Fixed) ]]
-
-local PlayerGui = LP:WaitForChild("PlayerGui")
-local gui = Instance.new("ScreenGui")
-gui.Name = "RedxAI_v27" gui.ResetOnSpawn = false gui.DisplayOrder = 999 gui.Parent = PlayerGui
-
-local function new(class, props, parent)
-    local o = Instance.new(class)
-    for k, v in pairs(props) do o[k] = v end
-    o.Parent = parent
-    return o
-end
-local function corner(o, r)
-    local c = Instance.new("UICorner")
-    c.CornerRadius = UDim.new(0, r or 8)
-    c.Parent = o
-    return c
-end
-
-local SendScriptLabels = {
-    auto = "Code only", ar = "كود بس", en = "Code only", fr = "Code seul", es = "Solo codigo", de = "Nur Code", tr = "Sadece kod",
-}
-local function sendScriptLabel() return SendScriptLabels[State.Lang] or SendScriptLabels.auto end
-local function extractCodeOnly(text)
-    if not text or #text == 0 then return "" end
-    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
-    if code and #code > 0 then return trim(code) end
-    return trim(text)
-end
-local function hasCode(text)
-    if not text then return false end
-    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
-    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
-        if text:find(p, 1, true) then return true end
-    end
-    return false
 end
 
 local ModeInfo = {
@@ -1348,44 +698,20 @@ local ModeInfo = {
     {icon = "📜", name = "Script", color = Color3.fromRGB(50, 200, 100), ph = "Ask for script...", chatBg = Color3.fromRGB(5, 15, 10), bubble = Color3.fromRGB(5, 20, 10)},
     {icon = "🗺️", name = "Map", color = Color3.fromRGB(30, 80, 180), ph = "Map or request...", chatBg = Color3.fromRGB(5, 10, 20), bubble = Color3.fromRGB(10, 20, 40)},
 }
-local Langs = {
-    {code = "auto", name = "Auto"}, {code = "ar", name = "Arabic"}, {code = "en", name = "English"},
-    {code = "fr", name = "Francais"}, {code = "es", name = "Espanol"}, {code = "de", name = "Deutsch"},
-    {code = "tr", name = "Turkce"},
-}
-
-local UIStrings = {
-    auto = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
-    ar = { modes = {"💬 محادثة وأوامر", "🧠 مساعد برمجة", "📜 كاتب سكريبت", "🗺️ سكريبت ماب"}, ph = {"اكتب أمرك هنا...", "اسألني عن أي كود...", "اطلب سكريبت...", "اكتب اسم الماب أو طلبك..."} },
-    en = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
-    fr = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Tapez...", "Posez une question...", "Demandez un script...", "Nom de la map..."} },
-    es = { modes = {"💬 Chat", "🧠 Código", "📜 Script", "🗺️ Mapas"}, ph = {"Escribe...", "Pregunta...", "Pide un script...", "Nombre del mapa..."} },
-    de = { modes = {"💬 Chat", "🧠 Code", "📜 Skript", "🗺️ Map Scripts"}, ph = {"Befehl...", "Frage...", "Skript anfordern...", "Map Name..."} },
-    tr = { modes = {"💬 Sohbet", "🧠 Kod", "📜 Script", "🗺️ Harita"}, ph = {"Komut yaz...", "Soru sor...", "Script iste...", "Harita adı..."} }
-}
 
 local smallSize, largeSize = UDim2.fromOffset(320, 220), UDim2.fromOffset(320, 420)
 local isMaximized = false
 
-local main = new("Frame", {
-    Name = "Main", Size = smallSize, Position = UDim2.new(0.5, -160, 0.5, -110),
-    BackgroundColor3 = Color3.fromRGB(18, 8, 10), BorderSizePixel = 0, Active = true, ClipsDescendants = true,
-}, gui)
+local main = new("Frame", { Name = "Main", Size = smallSize, Position = UDim2.new(0.5, -160, 0.5, -110), BackgroundColor3 = Color3.fromRGB(18, 8, 10), BorderSizePixel = 0, Active = true, ClipsDescendants = true }, gui)
 corner(main, 10)
 new("UIStroke", {Color = Color3.fromRGB(150, 20, 30), Thickness = 1.5}, main)
 
 local bar = new("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25), BorderSizePixel = 0, Active = true, ZIndex = 2}, main)
 corner(bar, 10)
-new("TextLabel", {Size = UDim2.new(1, -190, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
-    Text = "RedxAI Pro", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
-    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3}, bar)
+new("TextLabel", {Size = UDim2.new(1, -190, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1, Text = "RedxAI Pro", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3}, bar)
 
 local function headBtn(txt, x, w)
-    local b = new("TextButton", {
-        Size = UDim2.fromOffset(w or 26, 24), Position = UDim2.new(1, x, 0, 5.5),
-        BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = txt, TextColor3 = Color3.new(1, 1, 1),
-        Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 4,
-    }, bar)
+    local b = new("TextButton", { Size = UDim2.fromOffset(w or 26, 24), Position = UDim2.new(1, x, 0, 5.5), BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = txt, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 10, Active = true }, bar)
     corner(b, 6)
     return b
 end
@@ -1395,211 +721,107 @@ local minBtn = headBtn("➖", -100, 34)
 local langBtn = headBtn("🌐", -138, 34)
 local codeBtn = headBtn("💬", -178, 44)
 
-local langFrame = new("ScrollingFrame", {
-    Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40),
-    BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3,
-    AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 10,
-}, main)
-corner(langFrame, 8)
-new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
-new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
-
-local chat = new("ScrollingFrame", {
-    Size = UDim2.new(1, -16, 1, -90), Position = UDim2.fromOffset(8, 42), BackgroundColor3 = ModeInfo[1].chatBg,
-    BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y,
-    CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 1,
-}, main)
+local chat = new("ScrollingFrame", { Size = UDim2.new(1, -16, 1, -90), Position = UDim2.fromOffset(8, 42), BackgroundColor3 = ModeInfo[1].chatBg, BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 1 }, main)
 corner(chat, 8)
 new("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, chat)
 new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, chat)
 
+local input = new("TextBox", { Size = UDim2.new(1, -60, 0, 38), Position = UDim2.new(0, 8, 1, -46), BackgroundColor3 = Color3.fromRGB(25, 8, 12), TextColor3 = Color3.new(1, 1, 1), PlaceholderText = "Type here...", PlaceholderColor3 = Color3.fromRGB(140, 100, 110), Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, Text = "", ZIndex = 2 }, main)
+corner(input, 8)
+new("UIStroke", {Color = Color3.fromRGB(100, 15, 20), Thickness = 1}, input)
+
+local send = new("TextButton", { Size = UDim2.fromOffset(44, 38), Position = UDim2.new(1, -52, 1, -46), BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "▶", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 18, ZIndex = 10, Active = true }, main)
+corner(send, 8)
+
+-- ═══ CONTROL PANEL (LEFT) ═══
+local panel = new("Frame", { Name = "Panel", Size = UDim2.new(0, 200, 0, 220), Position = UDim2.new(0, 15, 0.5, -110), BackgroundColor3 = Color3.fromRGB(20, 20, 20), BorderSizePixel = 0, Visible = false, ZIndex = 20 }, gui)
+corner(panel, 8)
+new("UIStroke", {Color = Color3.fromRGB(150, 20, 30), Thickness = 2}, panel)
+local pBar = new("Frame", { Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(80, 10, 15), BorderSizePixel = 0, ZIndex = 21 }, panel)
+corner(pBar, 8)
+new("TextLabel", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1, Text = "🩸 " .. LP.Name, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 22 }, pBar)
+
+local function makeRow(y, text)
+    local row = new("Frame", { Size = UDim2.new(1, -10, 0, 40), Position = UDim2.new(0, 5, 0, y), BackgroundTransparency = 1, ZIndex = 22 }, panel)
+    local lbl = new("TextLabel", { Size = UDim2.new(0.5, 0, 1, 0), BackgroundTransparency = 1, Text = text, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 23 }, row)
+    local minus = new("TextButton", { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(0.55, 0, 0.5, -15), BackgroundColor3 = Color3.fromRGB(150, 10, 20), Text = "-", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 18, ZIndex = 24 }, row)
+    corner(minus, 4)
+    local plus = new("TextButton", { Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(0.8, 0, 0.5, -15), BackgroundColor3 = Color3.fromRGB(10, 150, 20), Text = "+", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 18, ZIndex = 24 }, row)
+    corner(plus, 4)
+    return lbl, minus, plus
+end
+
+local walkLbl, walkMinus, walkPlus = makeRow(45, "Walk: 16")
+local flyLbl, flyMinus, flyPlus = makeRow(95, "Fly: 50")
+local noclipBtn = new("TextButton", { Size = UDim2.new(1, -10, 0, 35), Position = UDim2.new(0, 5, 0, 150), BackgroundColor3 = Color3.fromRGB(50, 50, 50), Text = "Noclip: OFF", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold, TextSize = 13, ZIndex = 22 }, panel)
+corner(noclipBtn, 6)
+
+UpdatePanel = function()
+    panel.Visible = State.ShowPanel
+    walkLbl.Text = "Walk: " .. (State.Speed or 16)
+    flyLbl.Text = "Fly: " .. State.FlySpeed
+    walkLbl.TextColor3 = State.Speed and Color3.fromRGB(0, 255, 0) or Color3.new(1,1,1)
+    flyLbl.TextColor3 = State.Fly and Color3.fromRGB(0, 255, 0) or Color3.new(1,1,1)
+    noclipBtn.Text = "Noclip: " .. (State.Noclip and "ON" or "OFF")
+    noclipBtn.BackgroundColor3 = State.Noclip and Color3.fromRGB(10, 150, 20) or Color3.fromRGB(50, 50, 50)
+end
+
+walkMinus.MouseButton1Click:Connect(function() Cmd.speed((State.Speed or 16) - 5) UpdatePanel() end)
+walkPlus.MouseButton1Click:Connect(function() Cmd.speed((State.Speed or 16) + 5) UpdatePanel() end)
+flyMinus.MouseButton1Click:Connect(function() Cmd.fly(State.Fly, State.FlySpeed - 5) UpdatePanel() end)
+flyPlus.MouseButton1Click:Connect(function() Cmd.fly(State.Fly, State.FlySpeed + 5) UpdatePanel() end)
+noclipBtn.MouseButton1Click:Connect(function() Cmd.noclip(not State.Noclip) UpdatePanel() end)
+
+RS.Heartbeat:Connect(function() if State.ShowPanel and not panel.Visible then UpdatePanel() end end)
+UpdatePanel()
+-- ═════════════════════════
+--[[ RedxAI v29.0 | Part 5B of 8 | UI Logic & Draggable Fix ]]
+
+local langFrame = new("ScrollingFrame", { Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40), BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 10 }, main)
+corner(langFrame, 8)
+new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
+new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
+
+local Langs = {
+    {code = "auto", name = "Auto"}, {code = "ar", name = "Arabic"}, {code = "en", name = "English"},
+    {code = "fr", name = "Francais"}, {code = "es", name = "Espanol"}, {code = "de", name = "Deutsch"},
+    {code = "tr", name = "Turkce"},
+}
+
+for i, langData in ipairs(Langs) do
+    local btn = new("TextButton", { Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = Color3.fromRGB(40, 10, 15), Text = langData.name, TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.Gotham, TextSize = 12, ZIndex = 11, LayoutOrder = i }, langFrame)
+    corner(btn, 4)
+    btn.MouseButton1Click:Connect(function()
+        State.Lang = langData.code
+        langFrame.Visible = false
+        send.Text = langData.name
+    end)
+end
+
 local function scrollDown() task.wait() chat.CanvasPosition = Vector2.new(0, chat.AbsoluteCanvasSize.Y) end
-local function setBubbleText(bubble, s)
-    if #s > 100000 then s = s:sub(1, 100000) .. "\n... (too long)" end
-    bubble.Text = s
-end
-
-local readerOverlay = new("TextButton", {
-    Name = "ReaderOverlay", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0),
-    BackgroundTransparency = 0.6, Visible = false, ZIndex = 50, Text = "", AutoButtonColor = false,
-}, gui)
-local readerFrame = new("Frame", {
-    Name = "ReaderFrame", Size = UDim2.new(0.9, 0, 0.85, 0), Position = UDim2.new(0.05, 0, 0.05, 0),
-    BackgroundColor3 = Color3.fromRGB(20, 5, 8), BorderSizePixel = 0, Visible = false, ZIndex = 51, Active = true,
-}, gui)
-corner(readerFrame, 10)
-new("UIStroke", {Color = Color3.fromRGB(200, 20, 30), Thickness = 2}, readerFrame)
-local rBar = new("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25), BorderSizePixel = 0, ZIndex = 52}, readerFrame)
-corner(rBar, 10)
-new("TextLabel", {Size = UDim2.new(1, -100, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
-    Text = "Text Reader", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
-    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 53}, rBar)
-local rClose = new("TextButton", {Size = UDim2.fromOffset(26, 24), Position = UDim2.new(1, -32, 0, 5.5),
-    BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = "❌", TextColor3 = Color3.new(1, 1, 1),
-    Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 54}, rBar)
-corner(rClose, 6)
-local rCopy = new("TextButton", {Size = UDim2.fromOffset(40, 24), Position = UDim2.new(1, -80, 0, 5.5),
-    BackgroundColor3 = Color3.fromRGB(50, 200, 100), Text = "📋", TextColor3 = Color3.new(1, 1, 1),
-    Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 54}, rBar)
-corner(rCopy, 6)
-local rText = new("TextBox", {
-    Size = UDim2.new(1, -20, 1, -50), Position = UDim2.fromOffset(10, 42), BackgroundColor3 = Color3.fromRGB(10, 2, 5),
-    TextColor3 = Color3.fromRGB(150, 255, 150), Font = Enum.Font.Code, TextSize = 14, TextWrapped = true,
-    TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-    ClearTextOnFocus = false, MultiLine = true, Text = "", ZIndex = 52,
-}, readerFrame)
-corner(rText, 6)
-
-local function openReader(text) rText.Text = text readerOverlay.Visible = true readerFrame.Visible = true end
-local function closeReader() readerOverlay.Visible = false readerFrame.Visible = false end
-rClose.MouseButton1Click:Connect(closeReader)
-readerOverlay.MouseButton1Click:Connect(closeReader)
-rCopy.MouseButton1Click:Connect(function()
-    local clip = setclipboard or toclipboard or set_clipboard
-    local ok = clip and pcall(clip, rText.Text)
-    rCopy.Text = ok and "✅" or "⚠"
-    task.wait(1.3)
-    rCopy.Text = "📋"
-end)
-
-local function applyLang()
-    local L = UIStrings[State.Lang] or UIStrings.auto
-    for i = 1, 4 do
-        ModeInfo[i].name = L.modes[i]
-        ModeInfo[i].ph = L.ph[i]
-    end
-    local m = ModeInfo[State.Mode]
-    codeBtn.Text = m.icon
-    codeBtn.BackgroundColor3 = m.color
-    input.PlaceholderText = m.ph
-    chat.BackgroundColor3 = m.chatBg
-end
-
-local msgCount = 0
-local codeBtns = {}
-local function updateCodeBtnsLang()
-    local lbl = sendScriptLabel()
-    for i = #codeBtns, 1, -1 do
-        local b = codeBtns[i]
-        if b and b.Parent then b.Text = lbl
-        else table.remove(codeBtns, i) end
-    end
-end
+local function setBubbleText(bubble, s) if #s > 100000 then s = s:sub(1, 100000) .. "\n... (too long)" end bubble.Text = s end
 
 local function addMsg(txt, isUser)
-    msgCount = msgCount + 1
-    local container = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundTransparency = 1, LayoutOrder = msgCount,
-    }, chat)
+    local container = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, LayoutOrder = #chat:GetChildren() }, chat)
     new("UIListLayout", {Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder}, container)
-
-    local bubble = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1,
-        BackgroundColor3 = isUser and Color3.fromRGB(90, 15, 25) or ModeInfo[State.Mode].bubble,
-        TextColor3 = Color3.fromRGB(240, 220, 225), Font = Enum.Font.Code, TextSize = 13, TextWrapped = true,
-        TextXAlignment = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left,
-        AutoButtonColor = false, Text = "",
-    }, container)
+    local bubble = new("TextButton", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, LayoutOrder = 1, BackgroundColor3 = isUser and Color3.fromRGB(90, 15, 25) or ModeInfo[State.Mode].bubble, TextColor3 = Color3.fromRGB(240, 220, 225), Font = Enum.Font.Code, TextSize = 13, TextWrapped = true, TextXAlignment = isUser and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left, AutoButtonColor = false, Text = "" }, container)
     corner(bubble, 6)
     new("UIPadding", {PaddingTop = UDim.new(0, 5), PaddingBottom = UDim.new(0, 5), PaddingLeft = UDim.new(0, 7), PaddingRight = UDim.new(0, 7)}, bubble)
     setBubbleText(bubble, txt)
-    bubble.MouseButton1Click:Connect(function()
-        if #txt > 0 then openReader(txt) end
-    end)
-
-    if not isUser and hasCode(txt) then
-        local row = new("Frame", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, LayoutOrder = 2}, container)
-        local cb = new("TextButton", {
-            Size = UDim2.fromOffset(120, 18), Position = UDim2.new(1, -120, 0, 1),
-            BackgroundColor3 = Color3.fromRGB(20, 80, 50), Text = "📤",
-            TextColor3 = Color3.fromRGB(180, 255, 200), Font = Enum.Font.GothamBold,
-            TextSize = 14, AutoButtonColor = true,
-        }, row)
-        corner(cb, 6)
-        cb.MouseButton1Click:Connect(function()
-            local code = extractCodeOnly(txt)
-            if #code > 0 then openReader(code) end
-        end)
-        codeBtns[#codeBtns + 1] = cb
-    end
-
     scrollDown()
     return bubble, container
-end
-
-local function attachCopy(container, rawText)
-    local row = new("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 3}, container)
-    local btn = new("TextButton", {
-        Size = UDim2.fromOffset(40, 22), BackgroundColor3 = Color3.fromRGB(45, 12, 18), Text = "📋",
-        TextColor3 = Color3.fromRGB(120, 210, 255), Font = Enum.Font.GothamBold, TextSize = 14,
-    }, row)
-    corner(btn, 6)
-    btn.MouseButton1Click:Connect(function()
-        local clip = setclipboard or toclipboard or set_clipboard
-        local ok = clip and pcall(clip, rawText)
-        btn.Text = ok and "✅" or "⚠"
-        task.wait(1.3)
-        btn.Text = "📋"
-    end)
-    scrollDown()
 end
 
 local function stripFences(s)
     local code = s:match("```[%w]*%s*\n(.-)```")
     if code then return trim(code) end
-    
     local lines = {}
     for line in s:gmatch("[^\r\n]+") do lines[#lines + 1] = line end
     local startIdx = 1
     for i, line in ipairs(lines) do
-        if line:match("^%s*local ") or line:match("^%s*--") or line:match("^%s*game:GetService") or line:match("^%s*getgenv") or line:match("^%s*loadstring") or line:match("^%s*workspace") or line:match("^%s*function ") then
-            startIdx = i break
-        end
+        if line:match("^%s*local ") or line:match("^%s*--") or line:match("^%s*game:GetService") or line:match("^%s*getgenv") or line:match("^%s*loadstring") or line:match("^%s*workspace") or line:match("^%s*function ") then startIdx = i break end
     end
-    local out = table.concat(lines, "\n", startIdx)
-    out = out:gsub("```[%w]*", "")
-    return trim(out)
-end
-
-local input = new("TextBox", {
-    Size = UDim2.new(1, -60, 0, 38), Position = UDim2.new(0, 8, 1, -46),
-    BackgroundColor3 = Color3.fromRGB(25, 8, 12), TextColor3 = Color3.new(1, 1, 1),
-    PlaceholderText = "Type here...", PlaceholderColor3 = Color3.fromRGB(140, 100, 110),
-    Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, Text = "", ZIndex = 2,
-}, main)
-corner(input, 8)
-new("UIStroke", {Color = Color3.fromRGB(100, 15, 20), Thickness = 1}, input)
-
-local send = new("TextButton", {
-    Size = UDim2.fromOffset(44, 38), Position = UDim2.new(1, -52, 1, -46),
-    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "▶",
-    TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 18, ZIndex = 2,
-}, main)
-corner(send, 8)
-
-local miniApp = new("TextButton", {
-    Name = "Mini", Size = UDim2.fromOffset(46, 46), Position = UDim2.new(0.5, -23, 0.5, -23),
-    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "R", TextColor3 = Color3.new(1, 1, 1),
-    Font = Enum.Font.GothamBlack, TextSize = 22, Visible = false, Active = true, ZIndex = 10,
-}, gui)
-corner(miniApp, 12)
-new("UIStroke", {Color = Color3.fromRGB(255, 50, 60), Thickness = 1.5}, miniApp)
-
-for i, langData in ipairs(Langs) do
-    local btn = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 26), BackgroundColor3 = Color3.fromRGB(40, 10, 15),
-        Text = langData.name, TextColor3 = Color3.new(1, 1, 1),
-        Font = Enum.Font.Gotham, TextSize = 12, ZIndex = 11, LayoutOrder = i,
-    }, langFrame)
-    corner(btn, 4)
-    btn.MouseButton1Click:Connect(function()
-        State.Lang = langData.code
-        langFrame.Visible = false
-        updateCodeBtnsLang()
-        applyLang()
-        addMsg("Language: " .. langData.name, false)
-    end)
+    return trim(table.concat(lines, "\n", startIdx))
 end
 
 local function Submit()
@@ -1613,18 +835,7 @@ local function Submit()
         local thinking, activeBubble = false, nil
         local ok, err = pcall(function()
             local nt = norm(txt)
-            if nt == "/clear" or nt == "clear" then
-                History = {{},{},{},{}}
-                Maps._scan = nil
-                addMsg("Cleared history.", false)
-                return
-            end
-            if nt == "/refresh" or nt == "refresh" or nt == "/scan" then
-                Maps._scan = nil
-                local _, stats, gname = Maps.Scan()
-                addMsg(Maps.Report(gname, stats, "ok"), false)
-                return
-            end
+            if nt == "/clear" or nt == "clear" then History = {{},{},{},{}; return end
             local mode = State.Mode
             if mode == 1 or mode == 4 then
                 local direct = ParseDirectCommands(txt)
@@ -1634,109 +845,64 @@ local function Submit()
             local bubble, container = addMsg("Thinking...", false)
             activeBubble = bubble
             thinking = true
-            task.spawn(function()
-                local n = 0
-                while thinking do
-                    n = n % 3 + 1
-                    if bubble and bubble.Parent then bubble.Text = "Thinking" .. string.rep(".", n) end
-                    task.wait(0.4)
-                end
-            end)
+            task.spawn(function() local n = 0 while thinking do n = n % 3 + 1 if bubble and bubble.Parent then bubble.Text = "Thinking" .. string.rep(".", n) end task.wait(0.4) end end)
             local ans, why = AskAI(txt, mode, false)
-            if ans and (mode == 3 or mode == 4) and not looksLikeCode(stripFences(ans)) then
-                ans = AskAI(txt, mode, true) or ans
-            end
+            if ans and (mode == 3 or mode == 4) and not looksLikeCode(stripFences(ans)) then ans = AskAI(txt, mode, true) or ans end
             thinking = false
-            if not ans then
-                if why == "no_http" then setBubbleText(bubble, "Executor does not support request.")
-                else setBubbleText(bubble, "Server busy. Try again.") end
+            if not ans then setBubbleText(bubble, "Server busy. Try again.")
             else
                 local clean = ans
-                if mode == 3 or mode == 4 then
-                    clean = stripFences(ans)
-                    bubble.TextColor3 = Color3.fromRGB(150, 255, 150)
-                elseif mode == 1 then
-                    clean = ApplyTags(ans)
-                end
+                if mode == 3 or mode == 4 then clean = stripFences(ans); bubble.TextColor3 = Color3.fromRGB(150, 255, 150)
+                elseif mode == 1 then clean = ApplyTags(ans) end
                 if clean == "" then clean = "Done" end
                 pushHist(mode, txt, ans)
                 setBubbleText(bubble, clean)
-                attachCopy(container, clean)
             end
             scrollDown()
         end)
         thinking = false
         State.Busy = false
-        if not ok then
-            if activeBubble and activeBubble.Parent then setBubbleText(activeBubble, "Error: " .. tostring(err))
-            else addMsg("Error: " .. tostring(err), false) end
-        end
+        if not ok and activeBubble and activeBubble.Parent then setBubbleText(activeBubble, "Error: " .. tostring(err)) end
     end)
 end
 
 send.MouseButton1Click:Connect(Submit)
 input.FocusLost:Connect(function(enter) if enter then Submit() end end)
 
-local function makeDraggable(handle, target, key)
-    local dragging, dragStart, startPos, moved = false, nil, nil, false
-    handle.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = true moved = false dragStart = i.Position startPos = target.Position
-        end
-    end)
-    setConn(key .. "_end", UIS.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end))
-    setConn(key, UIS.InputChanged:Connect(function(i)
-        if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
-            local d = i.Position - dragStart
-            if d.Magnitude > 4 then moved = true end
-            target.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end
-    end))
-    return function() return moved end
-end
-makeDraggable(bar, main, "drag_main")
-local miniMoved = makeDraggable(miniApp, miniApp, "drag_mini")
+-- 🔥 إصلاح السحب: الشريط العلوي هو اللي بيتسحب بيه والزراير شغالة تمام
+local dragging, dragStart, startPos = false, nil, nil
+bar.InputBegan:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = i.Position
+        startPos = main.Position
+    end
+end)
+UIS.InputChanged:Connect(function(i)
+    if dragging and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then
+        local d = i.Position - dragStart
+        main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+    end
+end)
+UIS.InputEnded:Connect(function(i)
+    if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
 
+-- زراير التحكم في الوضع واللغة والتكبير والتصغير
 langBtn.MouseButton1Click:Connect(function() langFrame.Visible = not langFrame.Visible end)
-
-applyLang()
-
-codeBtn.MouseButton1Click:Connect(function()
-    State.Mode = State.Mode % 4 + 1
-    applyLang()
-    addMsg("Mode: " .. ModeInfo[State.Mode].name, false)
+codeBtn.MouseButton1Click:Connect(function() 
+    State.Mode = State.Mode % 4 + 1 
+    codeBtn.Text = ModeInfo[State.Mode].icon 
+    input.PlaceholderText = ModeInfo[State.Mode].ph 
+    chat.BackgroundColor3 = ModeInfo[State.Mode].chatBg 
 end)
 
-maxBtn.MouseButton1Click:Connect(function()
-    isMaximized = not isMaximized
-    main.Size = isMaximized and largeSize or smallSize
-    maxBtn.Text = isMaximized and "➖" or "➕"
+maxBtn.MouseButton1Click:Connect(function() 
+    isMaximized = not isMaximized 
+    main.Size = isMaximized and largeSize or smallSize 
+    maxBtn.Text = isMaximized and "➖" or "➕" 
 end)
-minBtn.MouseButton1Click:Connect(function()
-    main.Visible = false
-    miniApp.Position = main.Position
-    miniApp.Visible = true
-end)
-miniApp.MouseButton1Click:Connect(function()
-    if miniMoved() then return end
-    main.Position = miniApp.Position
-    main.Visible = true
-    miniApp.Visible = false
-end)
+minBtn.MouseButton1Click:Connect(function() main.Visible = false end)
+closeBtn.MouseButton1Click:Connect(function() gui:Destroy() end)
 
-local function Unload()
-    pcall(Cmd.fly, false) pcall(Cmd.noclip, false) pcall(Cmd.god, false)
-    pcall(Cmd.esp, false) pcall(Cmd.invisible, false) pcall(Cmd.spin, false)
-    pcall(Cmd.clicktp, false) pcall(Cmd.antiafk, false)
-    pcall(Cmd.speedoff) pcall(Cmd.jumpoff)
-    for k in pairs(Conns) do dropConn(k) end
-    gui:Destroy()
-end
-closeBtn.MouseButton1Click:Connect(Unload)
-env.RedxAI_Unload = Unload
-
-addMsg("Welcome to RedxAI v27.1! Type 'help' for commands.", false)
+addMsg("Welcome to RedxAI v29.0! Type 'help' for commands.", false)
