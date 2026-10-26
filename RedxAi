@@ -1304,7 +1304,55 @@ rCopy.MouseButton1Click:Connect(function()
     task.wait(1.3)
     rCopy.Text = "📋"
 end)
---[[ RedxAI v27.1 | Part 5B of 8 | Messages + Submit + Language Fix ]]
+--[[ RedxAI v27.1 | Part 5 | UI & Run (Fully Fixed) ]]
+
+local PlayerGui = LP:WaitForChild("PlayerGui")
+local gui = Instance.new("ScreenGui")
+gui.Name = "RedxAI_v27" gui.ResetOnSpawn = false gui.DisplayOrder = 999 gui.Parent = PlayerGui
+
+local function new(class, props, parent)
+    local o = Instance.new(class)
+    for k, v in pairs(props) do o[k] = v end
+    o.Parent = parent
+    return o
+end
+local function corner(o, r)
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, r or 8)
+    c.Parent = o
+    return c
+end
+
+local SendScriptLabels = {
+    auto = "Code only", ar = "كود بس", en = "Code only", fr = "Code seul", es = "Solo codigo", de = "Nur Code", tr = "Sadece kod",
+}
+local function sendScriptLabel() return SendScriptLabels[State.Lang] or SendScriptLabels.auto end
+local function extractCodeOnly(text)
+    if not text or #text == 0 then return "" end
+    local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
+    if code and #code > 0 then return trim(code) end
+    return trim(text)
+end
+local function hasCode(text)
+    if not text then return false end
+    if text:find("```lua", 1, true) or text:find("```", 1, true) then return true end
+    for _, p in ipairs({"local ", "function ", "game:GetService", "Instance.new", "task.wait", "task.spawn"}) do
+        if text:find(p, 1, true) then return true end
+    end
+    return false
+end
+
+local ModeInfo = {
+    {icon = "💬", name = "Chat", color = Color3.fromRGB(80, 10, 15), ph = "Type command...", chatBg = Color3.fromRGB(10, 4, 5), bubble = Color3.fromRGB(30, 10, 15)},
+    {icon = "🧠", name = "Code", color = Color3.fromRGB(200, 150, 0), ph = "Ask about script...", chatBg = Color3.fromRGB(20, 15, 5), bubble = Color3.fromRGB(30, 20, 5)},
+    {icon = "📜", name = "Script", color = Color3.fromRGB(50, 200, 100), ph = "Ask for script...", chatBg = Color3.fromRGB(5, 15, 10), bubble = Color3.fromRGB(5, 20, 10)},
+    {icon = "🗺️", name = "Map", color = Color3.fromRGB(30, 80, 180), ph = "Map or request...", chatBg = Color3.fromRGB(5, 10, 20), bubble = Color3.fromRGB(10, 20, 40)},
+}
+local Langs = {
+    {code = "auto", name = "Auto"}, {code = "ar", name = "Arabic"}, {code = "en", name = "English"},
+    {code = "fr", name = "Francais"}, {code = "es", name = "Espanol"}, {code = "de", name = "Deutsch"},
+    {code = "tr", name = "Turkce"},
+}
 
 local UIStrings = {
     auto = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
@@ -1315,6 +1363,104 @@ local UIStrings = {
     de = { modes = {"💬 Chat", "🧠 Code", "📜 Skript", "🗺️ Map Scripts"}, ph = {"Befehl...", "Frage...", "Skript anfordern...", "Map Name..."} },
     tr = { modes = {"💬 Sohbet", "🧠 Kod", "📜 Script", "🗺️ Harita"}, ph = {"Komut yaz...", "Soru sor...", "Script iste...", "Harita adı..."} }
 }
+
+local smallSize, largeSize = UDim2.fromOffset(320, 220), UDim2.fromOffset(320, 420)
+local isMaximized = false
+
+local main = new("Frame", {
+    Name = "Main", Size = smallSize, Position = UDim2.new(0.5, -160, 0.5, -110),
+    BackgroundColor3 = Color3.fromRGB(18, 8, 10), BorderSizePixel = 0, Active = true, ClipsDescendants = true,
+}, gui)
+corner(main, 10)
+new("UIStroke", {Color = Color3.fromRGB(150, 20, 30), Thickness = 1.5}, main)
+
+local bar = new("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25), BorderSizePixel = 0, Active = true, ZIndex = 2}, main)
+corner(bar, 10)
+new("TextLabel", {Size = UDim2.new(1, -190, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
+    Text = "RedxAI Pro", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
+    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 3}, bar)
+
+local function headBtn(txt, x, w)
+    local b = new("TextButton", {
+        Size = UDim2.fromOffset(w or 26, 24), Position = UDim2.new(1, x, 0, 5.5),
+        BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = txt, TextColor3 = Color3.new(1, 1, 1),
+        Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 4,
+    }, bar)
+    corner(b, 6)
+    return b
+end
+local closeBtn = headBtn("❌", -32)
+local maxBtn = headBtn("➕", -62, 34)
+local minBtn = headBtn("➖", -100, 34)
+local langBtn = headBtn("🌐", -138, 34)
+local codeBtn = headBtn("💬", -178, 44)
+
+local langFrame = new("ScrollingFrame", {
+    Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40),
+    BackgroundColor3 = Color3.fromRGB(25, 8, 12), BorderSizePixel = 0, ScrollBarThickness = 3,
+    AutomaticCanvasSize = Enum.AutomaticSize.Y, CanvasSize = UDim2.new(0, 0, 0, 0), Visible = false, ZIndex = 10,
+}, main)
+corner(langFrame, 8)
+new("UIListLayout", {Padding = UDim.new(0, 2), SortOrder = Enum.SortOrder.LayoutOrder}, langFrame)
+new("UIPadding", {PaddingTop = UDim.new(0, 4), PaddingLeft = UDim.new(0, 4), PaddingRight = UDim.new(0, 4)}, langFrame)
+
+local chat = new("ScrollingFrame", {
+    Size = UDim2.new(1, -16, 1, -90), Position = UDim2.fromOffset(8, 42), BackgroundColor3 = ModeInfo[1].chatBg,
+    BorderSizePixel = 0, ScrollBarThickness = 3, AutomaticCanvasSize = Enum.AutomaticSize.Y,
+    CanvasSize = UDim2.new(0, 0, 0, 0), ZIndex = 1,
+}, main)
+corner(chat, 8)
+new("UIPadding", {PaddingTop = UDim.new(0, 8), PaddingLeft = UDim.new(0, 6), PaddingRight = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6)}, chat)
+new("UIListLayout", {Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder}, chat)
+
+local function scrollDown() task.wait() chat.CanvasPosition = Vector2.new(0, chat.AbsoluteCanvasSize.Y) end
+local function setBubbleText(bubble, s)
+    if #s > 100000 then s = s:sub(1, 100000) .. "\n... (too long)" end
+    bubble.Text = s
+end
+
+local readerOverlay = new("TextButton", {
+    Name = "ReaderOverlay", Size = UDim2.new(1, 0, 1, 0), BackgroundColor3 = Color3.new(0, 0, 0),
+    BackgroundTransparency = 0.6, Visible = false, ZIndex = 50, Text = "", AutoButtonColor = false,
+}, gui)
+local readerFrame = new("Frame", {
+    Name = "ReaderFrame", Size = UDim2.new(0.9, 0, 0.85, 0), Position = UDim2.new(0.05, 0, 0.05, 0),
+    BackgroundColor3 = Color3.fromRGB(20, 5, 8), BorderSizePixel = 0, Visible = false, ZIndex = 51, Active = true,
+}, gui)
+corner(readerFrame, 10)
+new("UIStroke", {Color = Color3.fromRGB(200, 20, 30), Thickness = 2}, readerFrame)
+local rBar = new("Frame", {Size = UDim2.new(1, 0, 0, 35), BackgroundColor3 = Color3.fromRGB(140, 15, 25), BorderSizePixel = 0, ZIndex = 52}, readerFrame)
+corner(rBar, 10)
+new("TextLabel", {Size = UDim2.new(1, -100, 1, 0), Position = UDim2.fromOffset(12, 0), BackgroundTransparency = 1,
+    Text = "Text Reader", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
+    TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 53}, rBar)
+local rClose = new("TextButton", {Size = UDim2.fromOffset(26, 24), Position = UDim2.new(1, -32, 0, 5.5),
+    BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = "❌", TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 54}, rBar)
+corner(rClose, 6)
+local rCopy = new("TextButton", {Size = UDim2.fromOffset(40, 24), Position = UDim2.new(1, -80, 0, 5.5),
+    BackgroundColor3 = Color3.fromRGB(50, 200, 100), Text = "📋", TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 54}, rBar)
+corner(rCopy, 6)
+local rText = new("TextBox", {
+    Size = UDim2.new(1, -20, 1, -50), Position = UDim2.fromOffset(10, 42), BackgroundColor3 = Color3.fromRGB(10, 2, 5),
+    TextColor3 = Color3.fromRGB(150, 255, 150), Font = Enum.Font.Code, TextSize = 14, TextWrapped = true,
+    TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
+    ClearTextOnFocus = false, MultiLine = true, Text = "", ZIndex = 52,
+}, readerFrame)
+corner(rText, 6)
+
+local function openReader(text) rText.Text = text readerOverlay.Visible = true readerFrame.Visible = true end
+local function closeReader() readerOverlay.Visible = false readerFrame.Visible = false end
+rClose.MouseButton1Click:Connect(closeReader)
+readerOverlay.MouseButton1Click:Connect(closeReader)
+rCopy.MouseButton1Click:Connect(function()
+    local clip = setclipboard or toclipboard or set_clipboard
+    local ok = clip and pcall(clip, rText.Text)
+    rCopy.Text = ok and "✅" or "⚠"
+    task.wait(1.3)
+    rCopy.Text = "📋"
+end)
 
 local function applyLang()
     local L = UIStrings[State.Lang] or UIStrings.auto
@@ -1427,7 +1573,7 @@ new("UIStroke", {Color = Color3.fromRGB(100, 15, 20), Thickness = 1}, input)
 
 local send = new("TextButton", {
     Size = UDim2.fromOffset(44, 38), Position = UDim2.new(1, -52, 1, -46),
-    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "➤",
+    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "▶",
     TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 18, ZIndex = 2,
 }, main)
 corner(send, 8)
@@ -1568,7 +1714,7 @@ end)
 maxBtn.MouseButton1Click:Connect(function()
     isMaximized = not isMaximized
     main.Size = isMaximized and largeSize or smallSize
-    maxBtn.Text = isMaximized and "🗕" or "🗖"
+    maxBtn.Text = isMaximized and "➖" or "➕"
 end)
 minBtn.MouseButton1Click:Connect(function()
     main.Visible = false
