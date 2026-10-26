@@ -1,4 +1,4 @@
---[[ RedxAI v27.1 | Part 1 of 5 | Core & Movement ]]
+--[[ RedxAI v27.1 | Part 1 of 8 | Core & Movement ]]
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -246,7 +246,7 @@ end
 
 function Cmd.sit() local h = getHum() if h then h.Sit = true end return "Sat down" end
 function Cmd.reset() local h = getHum() if h then h.Health = 0 end return "Reset" end
---[[ RedxAI v27.1 | Part 2 of 5 | Players & World ]]
+--[[ RedxAI v27.1 | Part 2 of 8 | Players & World ]]
 
 function Cmd.kill(name)
     local plr = findPlayer(name)
@@ -478,7 +478,7 @@ setConn("char", LP.CharacterAdded:Connect(function()
     if State.Fly then Cmd.fly(true) end
     if State.Invisible then Cmd.invisible(true) end
 end))
---[[ RedxAI v27.1 | Part 3 of 5 | Parser + Helpers + Maps ]]
+--[[ RedxAI v27.1 | Part 3A of 8 | Parser + Helpers ]]
 
 local CPMAP = {
     [0x0623] = 0x0627, [0x0625] = 0x0627, [0x0622] = 0x0627, [0x0671] = 0x0627,
@@ -613,8 +613,8 @@ local function ParseDirectCommands(txt)
     end
     return nil
 end
+--[[ RedxAI v27.1 | Part 3B of 8 | Helpers + Maps Base ]]
 
--- ===== Helpers =====
 local LangNames = {ar="Arabic",en="English",fr="French",es="Spanish",de="German",tr="Turkish"}
 local History = {{},{},{},{}}
 local MAX_HIST = 14
@@ -654,7 +654,6 @@ local TAGLIST = "[[fly:SPEED]] [[fly:off]] [[speed:NUM]] [[speed:off]] [[jump:NU
     .. "[[tp:NAME]] [[bring:NAME]] [[kill:NAME]] [[fling:NAME]] [[freeze:NAME]] [[view:NAME]] [[view:off]] "
     .. "[[savepos]] [[loadpos]] [[pos]] [[players]] [[btools]] [[serverhop]] [[rejoin]] [[chat:MSG]]"
 
--- ===== Maps Module =====
 local Maps = {
     _name = nil, _desc = nil, _scan = nil, _scanT = 0, _stats = nil, _placeId = nil,
     remoteKW = {"buy","purchase","equip","claim","reward","weapon","give","grant","drop","pickup",
@@ -727,7 +726,7 @@ function Maps.itemInfo(btn, buyset, sg)
     end
     return label, stock
 end
---[[ RedxAI v27.1 | Part 4A | Scan + scanRoot ]]
+--[[ RedxAI v27.1 | Part 4A of 8 | Scan + scanRoot ]]
 
 function Maps.Scan()
     if Maps._scan and os.clock() - Maps._scanT < 60 then
@@ -890,7 +889,7 @@ function Maps.Scan()
             end
         end
     end
---[[ RedxAI v27.1 | Part 4B | Rest of Scan + System + Report + AskAI ]]
+--[[ RedxAI v27.1 | Part 4B of 8 | Rest of Scan + System + AI ]]
 
     scanRoot(workspace, "Workspace")
     scanRoot(game:GetService("ReplicatedStorage"), "ReplicatedStorage")
@@ -1017,7 +1016,7 @@ function Maps.System(L)
         "",
         "SAFETY: no anti-cheat bypass, no kill/fling/freeze/grief/admin impersonation. Prefer ProximityPrompt + ClickDetector over remote calls.",
         "",
-        "OUTPUT: ONE complete script as RAW Lua code. NO code fences. Nothing before/after except header comment.",
+        "OUTPUT: ONE complete script as RAW Lua code. NO code fences. NO introductory text. Start directly with the code.",
         "Header (5-8 lines, in " .. L .. "): game name, what script DOES and DOES NOT do, usage, scan entries used, EDIT ME notes.",
         "All comments in " .. L .. ". No placeholders.",
         "",
@@ -1046,7 +1045,10 @@ local function BuildSystem(mode, text)
     local splitRule = "\nSPLITTING: If user asks 'in 2 parts'/'on 3 times', send ONLY first part, end with EXACTLY '(type: next) to get the next part'."
     if mode == 3 then
         return "You are RedxAI Scripter, an elite Roblox Lua scripter for Delta executor.\n"
-            .. "1. Write IMMEDIATELY. Never ask.\n2. Output ONLY raw Lua code. No fences.\n3. Comments in " .. L .. "." .. splitRule
+            .. "1. Write IMMEDIATELY. Never ask.\n"
+            .. "2. Output ONLY raw Lua code. No fences. No text. Start directly with 'local' or 'game'.\n"
+            .. "CRITICAL: Do NOT write any introductory or concluding text (like 'Here is the script' or 'اسم اللعبة'). Just the code.\n"
+            .. "3. Comments in " .. L .. "." .. splitRule
     elseif mode == 2 then
         return "You are RedxAI CodeMaster, an expert Roblox Lua developer.\n"
             .. "Explain clearly. Code inside lua blocks.\nReply in " .. L .. "." .. splitRule
@@ -1155,7 +1157,7 @@ local function ApplyTags(txt)
     if #res > 0 then clean = (clean ~= "" and (clean .. "\n\n") or "") .. table.concat(res, "\n") end
     return clean
 end
---[[ RedxAI v27.1 | Part 5A | UI Setup + Reader ]]
+--[[ RedxAI v27.1 | Part 5A of 8 | UI Setup + Reader ]]
 
 local PlayerGui = LP:WaitForChild("PlayerGui")
 local gui = Instance.new("ScreenGui")
@@ -1175,17 +1177,9 @@ local function corner(o, r)
 end
 
 local SendScriptLabels = {
-    auto = "Code only",
-    ar = "Code only",
-    en = "Code only",
-    fr = "Code seul",
-    es = "Solo codigo",
-    de = "Nur Code",
-    tr = "Sadece kod",
+    auto = "Code only", ar = "كود بس", en = "Code only", fr = "Code seul", es = "Solo codigo", de = "Nur Code", tr = "Sadece kod",
 }
-local function sendScriptLabel()
-    return SendScriptLabels[State.Lang] or SendScriptLabels.auto
-end
+local function sendScriptLabel() return SendScriptLabels[State.Lang] or SendScriptLabels.auto end
 local function extractCodeOnly(text)
     if not text or #text == 0 then return "" end
     local code = text:match("```lua%s*\n(.-)```") or text:match("```%w*%s*\n(.-)```")
@@ -1202,10 +1196,10 @@ local function hasCode(text)
 end
 
 local ModeInfo = {
-    {icon = "Chat", name = "Chat and Commands", color = Color3.fromRGB(80, 10, 15), ph = "Type your question or command...", chatBg = Color3.fromRGB(10, 4, 5), bubble = Color3.fromRGB(30, 10, 15)},
-    {icon = "Brain", name = "Code Assistant", color = Color3.fromRGB(200, 150, 0), ph = "Ask me about any script...", chatBg = Color3.fromRGB(20, 15, 5), bubble = Color3.fromRGB(30, 20, 5)},
-    {icon = "Doc", name = "Script Writer (code only)", color = Color3.fromRGB(50, 200, 100), ph = "Ask for any script...", chatBg = Color3.fromRGB(5, 15, 10), bubble = Color3.fromRGB(5, 20, 10)},
-    {icon = "Map", name = "Map Scripts (all-in-one)", color = Color3.fromRGB(30, 80, 180), ph = "buy seeds X | who is murderer | collect coins | steal eggs", chatBg = Color3.fromRGB(5, 10, 20), bubble = Color3.fromRGB(10, 20, 40)},
+    {icon = "💬", name = "", color = Color3.fromRGB(80, 10, 15), ph = "", chatBg = Color3.fromRGB(10, 4, 5), bubble = Color3.fromRGB(30, 10, 15)},
+    {icon = "🧠", name = "", color = Color3.fromRGB(200, 150, 0), ph = "", chatBg = Color3.fromRGB(20, 15, 5), bubble = Color3.fromRGB(30, 20, 5)},
+    {icon = "📜", name = "", color = Color3.fromRGB(50, 200, 100), ph = "", chatBg = Color3.fromRGB(5, 15, 10), bubble = Color3.fromRGB(5, 20, 10)},
+    {icon = "🗺️", name = "", color = Color3.fromRGB(30, 80, 180), ph = "", chatBg = Color3.fromRGB(5, 10, 20), bubble = Color3.fromRGB(10, 20, 40)},
 }
 local Langs = {
     {code = "auto", name = "Auto"}, {code = "ar", name = "Arabic"}, {code = "en", name = "English"},
@@ -1238,11 +1232,11 @@ local function headBtn(txt, x, w)
     corner(b, 6)
     return b
 end
-local closeBtn = headBtn("X", -32)
-local maxBtn = headBtn("Max", -62, 34)
-local minBtn = headBtn("Min", -100, 34)
-local langBtn = headBtn("Lang", -138, 34)
-local codeBtn = headBtn("Chat", -178, 44)
+local closeBtn = headBtn("❌", -32)
+local maxBtn = headBtn("🗖", -62, 34)
+local minBtn = headBtn("🗕", -100, 34)
+local langBtn = headBtn("🌐", -138, 34)
+local codeBtn = headBtn("💬", -178, 44)
 
 local langFrame = new("ScrollingFrame", {
     Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(1, -160, 0, 40),
@@ -1284,12 +1278,12 @@ new("TextLabel", {Size = UDim2.new(1, -100, 1, 0), Position = UDim2.fromOffset(1
     Text = "Text Reader", TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBold,
     TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left, ZIndex = 53}, rBar)
 local rClose = new("TextButton", {Size = UDim2.fromOffset(26, 24), Position = UDim2.new(1, -32, 0, 5.5),
-    BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = "X", TextColor3 = Color3.new(1, 1, 1),
+    BackgroundColor3 = Color3.fromRGB(80, 10, 15), Text = "❌", TextColor3 = Color3.new(1, 1, 1),
     Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 54}, rBar)
 corner(rClose, 6)
-local rCopy = new("TextButton", {Size = UDim2.fromOffset(70, 24), Position = UDim2.new(1, -110, 0, 5.5),
-    BackgroundColor3 = Color3.fromRGB(50, 200, 100), Text = "Copy", TextColor3 = Color3.new(1, 1, 1),
-    Font = Enum.Font.GothamBold, TextSize = 12, ZIndex = 54}, rBar)
+local rCopy = new("TextButton", {Size = UDim2.fromOffset(40, 24), Position = UDim2.new(1, -80, 0, 5.5),
+    BackgroundColor3 = Color3.fromRGB(50, 200, 100), Text = "📋", TextColor3 = Color3.new(1, 1, 1),
+    Font = Enum.Font.GothamBold, TextSize = 14, ZIndex = 54}, rBar)
 corner(rCopy, 6)
 local rText = new("TextBox", {
     Size = UDim2.new(1, -20, 1, -50), Position = UDim2.fromOffset(10, 42), BackgroundColor3 = Color3.fromRGB(10, 2, 5),
@@ -1306,10 +1300,35 @@ readerOverlay.MouseButton1Click:Connect(closeReader)
 rCopy.MouseButton1Click:Connect(function()
     local clip = setclipboard or toclipboard or set_clipboard
     local ok = clip and pcall(clip, rText.Text)
-    rCopy.Text = ok and "Done" or "Not supported"
+    rCopy.Text = ok and "✅" or "⚠"
     task.wait(1.3)
-    rCopy.Text = "Copy"
+    rCopy.Text = "📋"
 end)
+--[[ RedxAI v27.1 | Part 5B of 8 | Messages + Submit + Language Fix ]]
+
+local UIStrings = {
+    auto = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
+    ar = { modes = {"💬 محادثة وأوامر", "🧠 مساعد برمجة", "📜 كاتب سكريبت", "🗺️ سكريبت ماب"}, ph = {"اكتب أمرك هنا...", "اسألني عن أي كود...", "اطلب سكريبت...", "اكتب اسم الماب أو طلبك..."} },
+    en = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Type command...", "Ask about script...", "Ask for script...", "Map or request..."} },
+    fr = { modes = {"💬 Chat", "🧠 Code", "📜 Script", "🗺️ Map"}, ph = {"Tapez...", "Posez une question...", "Demandez un script...", "Nom de la map..."} },
+    es = { modes = {"💬 Chat", "🧠 Código", "📜 Script", "🗺️ Mapas"}, ph = {"Escribe...", "Pregunta...", "Pide un script...", "Nombre del mapa..."} },
+    de = { modes = {"💬 Chat", "🧠 Code", "📜 Skript", "🗺️ Map Scripts"}, ph = {"Befehl...", "Frage...", "Skript anfordern...", "Map Name..."} },
+    tr = { modes = {"💬 Sohbet", "🧠 Kod", "📜 Script", "🗺️ Harita"}, ph = {"Komut yaz...", "Soru sor...", "Script iste...", "Harita adı..."} }
+}
+
+local function applyLang()
+    local L = UIStrings[State.Lang] or UIStrings.auto
+    for i = 1, 4 do
+        ModeInfo[i].name = L.modes[i]
+        ModeInfo[i].ph = L.ph[i]
+    end
+    local m = ModeInfo[State.Mode]
+    codeBtn.Text = m.icon
+    codeBtn.BackgroundColor3 = m.color
+    input.PlaceholderText = m.ph
+    chat.BackgroundColor3 = m.chatBg
+end
+
 local msgCount = 0
 local codeBtns = {}
 local function updateCodeBtnsLang()
@@ -1347,9 +1366,9 @@ local function addMsg(txt, isUser)
         local row = new("Frame", {Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, LayoutOrder = 2}, container)
         local cb = new("TextButton", {
             Size = UDim2.fromOffset(120, 18), Position = UDim2.new(1, -120, 0, 1),
-            BackgroundColor3 = Color3.fromRGB(20, 80, 50), Text = sendScriptLabel(),
+            BackgroundColor3 = Color3.fromRGB(20, 80, 50), Text = "📤",
             TextColor3 = Color3.fromRGB(180, 255, 200), Font = Enum.Font.GothamBold,
-            TextSize = 11, AutoButtonColor = true,
+            TextSize = 14, AutoButtonColor = true,
         }, row)
         corner(cb, 6)
         cb.MouseButton1Click:Connect(function()
@@ -1366,30 +1385,41 @@ end
 local function attachCopy(container, rawText)
     local row = new("Frame", {Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1, LayoutOrder = 3}, container)
     local btn = new("TextButton", {
-        Size = UDim2.fromOffset(95, 22), BackgroundColor3 = Color3.fromRGB(45, 12, 18), Text = "Copy",
-        TextColor3 = Color3.fromRGB(120, 210, 255), Font = Enum.Font.GothamBold, TextSize = 12,
+        Size = UDim2.fromOffset(40, 22), BackgroundColor3 = Color3.fromRGB(45, 12, 18), Text = "📋",
+        TextColor3 = Color3.fromRGB(120, 210, 255), Font = Enum.Font.GothamBold, TextSize = 14,
     }, row)
     corner(btn, 6)
     btn.MouseButton1Click:Connect(function()
         local clip = setclipboard or toclipboard or set_clipboard
         local ok = clip and pcall(clip, rawText)
-        btn.Text = ok and "Done" or "Not supported"
+        btn.Text = ok and "✅" or "⚠"
         task.wait(1.3)
-        btn.Text = "Copy"
+        btn.Text = "📋"
     end)
     scrollDown()
 end
 
 local function stripFences(s)
     local code = s:match("```[%w]*%s*\n(.-)```")
-    if code then s = code else s = (s:gsub("```[%w]*", "")) end
-    return trim(s)
+    if code then return trim(code) end
+    
+    local lines = {}
+    for line in s:gmatch("[^\r\n]+") do lines[#lines + 1] = line end
+    local startIdx = 1
+    for i, line in ipairs(lines) do
+        if line:match("^%s*local ") or line:match("^%s*--") or line:match("^%s*game:GetService") or line:match("^%s*getgenv") or line:match("^%s*loadstring") or line:match("^%s*workspace") or line:match("^%s*function ") then
+            startIdx = i break
+        end
+    end
+    local out = table.concat(lines, "\n", startIdx)
+    out = out:gsub("```[%w]*", "")
+    return trim(out)
 end
 
 local input = new("TextBox", {
     Size = UDim2.new(1, -60, 0, 38), Position = UDim2.new(0, 8, 1, -46),
     BackgroundColor3 = Color3.fromRGB(25, 8, 12), TextColor3 = Color3.new(1, 1, 1),
-    PlaceholderText = ModeInfo[1].ph, PlaceholderColor3 = Color3.fromRGB(140, 100, 110),
+    PlaceholderText = "Type here...", PlaceholderColor3 = Color3.fromRGB(140, 100, 110),
     Font = Enum.Font.GothamBold, TextSize = 13, ClearTextOnFocus = false, Text = "", ZIndex = 2,
 }, main)
 corner(input, 8)
@@ -1397,7 +1427,7 @@ new("UIStroke", {Color = Color3.fromRGB(100, 15, 20), Thickness = 1}, input)
 
 local send = new("TextButton", {
     Size = UDim2.fromOffset(44, 38), Position = UDim2.new(1, -52, 1, -46),
-    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = ">",
+    BackgroundColor3 = Color3.fromRGB(140, 15, 25), Text = "➤",
     TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.GothamBlack, TextSize = 18, ZIndex = 2,
 }, main)
 corner(send, 8)
@@ -1421,6 +1451,7 @@ for i, langData in ipairs(Langs) do
         State.Lang = langData.code
         langFrame.Visible = false
         updateCodeBtnsLang()
+        applyLang()
         addMsg("Language: " .. langData.name, false)
     end)
 end
@@ -1526,25 +1557,18 @@ local miniMoved = makeDraggable(miniApp, miniApp, "drag_mini")
 
 langBtn.MouseButton1Click:Connect(function() langFrame.Visible = not langFrame.Visible end)
 
-local function applyMode()
-    local m = ModeInfo[State.Mode]
-    codeBtn.Text = m.icon
-    codeBtn.BackgroundColor3 = m.color
-    input.PlaceholderText = m.ph
-    chat.BackgroundColor3 = m.chatBg
-end
-applyMode()
+applyLang()
 
 codeBtn.MouseButton1Click:Connect(function()
     State.Mode = State.Mode % 4 + 1
-    applyMode()
+    applyLang()
     addMsg("Mode: " .. ModeInfo[State.Mode].name, false)
 end)
 
 maxBtn.MouseButton1Click:Connect(function()
     isMaximized = not isMaximized
     main.Size = isMaximized and largeSize or smallSize
-    maxBtn.Text = isMaximized and "Small" or "Max"
+    maxBtn.Text = isMaximized and "🗕" or "🗖"
 end)
 minBtn.MouseButton1Click:Connect(function()
     main.Visible = false
